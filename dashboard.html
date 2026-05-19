@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>農田水利署 水域型農業綠能 管制考核儀表板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+  :root {
+    --ink: #0f172a;
+    --ink-soft: #475569;
+    --ink-muted: #94a3b8;
+    --border: #e2e8f0;
+    --bg: #f8fafc;
+    --solar: #b45309;
+    --solar-bg: #fef3c7;
+    --hydro: #0f766e;
+    --hydro-bg: #ccfbf1;
+    --alert: #dc2626;
+    --warning: #d97706;
+    --success: #059669;
+  }
+  body { font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--ink); }
+  .font-serif-tc { font-family: 'Noto Serif TC', ui-serif, Georgia, serif; }
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+  .section-card { background: white; border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 1px 2px rgba(15,23,42,0.04); overflow: hidden; }
+  .kpi-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .filter-btn { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; border: 1px solid var(--border); background: white; color: var(--ink-soft); cursor: pointer; transition: all 0.15s; }
+  .filter-btn.active { background: var(--ink); color: white; border-color: var(--ink); }
+  .filter-btn:hover:not(.active) { border-color: var(--ink-soft); }
+  .tab-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 600; transition: all 0.15s; cursor: pointer; border: none; background: transparent; color: var(--ink-soft); }
+  .tab-btn.active-solar { background: var(--solar); color: white; box-shadow: 0 1px 3px rgba(180,83,9,0.3); }
+  .tab-btn.active-hydro { background: var(--hydro); color: white; box-shadow: 0 1px 3px rgba(15,118,110,0.3); }
+  .site-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 14px; transition: box-shadow 0.15s; cursor: pointer; }
+  .site-card:hover { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07); }
+  .site-card.anomaly-red { background: #fef2f2; border-color: #fca5a5; }
+  .site-card.anomaly-yellow { background: #fff7ed; border-color: #fed7aa; }
+  .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .progress-bar { height: 10px; border-radius: 9999px; background: #f1f5f9; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 9999px; }
+  .mgmt-clickable { cursor: pointer; transition: all 0.15s; }
+  .mgmt-clickable:hover { background: #f1f5f9; }
+  .icon-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; border: 1px solid var(--border); background: white; color: var(--ink-soft); cursor: pointer; transition: all 0.15s; }
+  .icon-btn:hover { background: #f8fafc; border-color: var(--ink-soft); color: var(--ink); }
+  .icon-btn svg { width: 14px; height: 14px; }
+  input[type=text] { padding: 6px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 6px; background: white; }
+  input[type=text]:focus { outline: none; border-color: var(--ink-soft); box-shadow: 0 0 0 3px rgba(71,85,105,0.1); }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.5); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
+  .modal-content { background: white; border-radius: 16px; max-width: 1100px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+  /* 列印樣式 - A4 直印 */
+  @page { size: A4; margin: 12mm; }
+  @media print {
+    body { background: white; }
+    .no-print { display: none !important; }
+    .section-card { box-shadow: none; border: 1px solid #cbd5e1; break-inside: avoid; page-break-inside: avoid; margin-bottom: 12px; }
+    header { position: relative !important; box-shadow: none !important; }
+    main { padding: 0 !important; }
+    .modal-backdrop { display: none !important; }
+    .max-w-7xl { max-width: 100% !important; }
+    body { font-size: 11px; }
+    h1 { font-size: 20px !important; }
+    h2 { font-size: 14px !important; }
+    h3 { font-size: 12px !important; }
+    .kpi-card { padding: 10px; }
+    .site-card { padding: 10px; break-inside: avoid; }
+    canvas { max-height: 240px !important; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const DATA = {"updated_at":"2026-05-14","solar":{"summary":{"total_completed_cases":135,"total_completed_mw":179.46,"target_mw":600,"channel_completed":97,"channel_mw":96.4,"pond_completed":35,"pond_mw":65.39,"reservoir_completed":3,"reservoir_mw":17.67,"channel_length_km":77.427,"gen_total_million_kwh":21161,"gen_channel":11789,"gen_pond":7421,"gen_reservoir":2168},"stages":[{"key":"completed","name":"已完工","cases":135,"mw":179.46,"color":"#059669"},{"key":"construction","name":"施工中(含待施工)","cases":3,"mw":2.53,"color":"#0891b2"},{"key":"admin","name":"完成招商-行政程序申設中","cases":45,"mw":112.95,"color":"#6366f1"},{"key":"tender","name":"招商中-公證簽約前","cases":0,"mw":0,"color":"#8b5cf6"},{"key":"planning","name":"評估待招商","cases":196,"mw":305.5,"color":"#94a3b8"}],"mgmt":[{"name":"桃園","target_mw":44.0,"completed_mw":47.3721,"construction_mw":2.0396,"admin_mw":0.0,"planning_mw":88.7504,"remaining_mw":90.79,"total_potential_mw":138.1621,"achievement_pct":107.7,"types":{"圳路":{"completed_mw":0.0,"construction_mw":2.0396,"admin_mw":0.0,"planning_mw":0.0},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":47.3721,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":88.7504}}},{"name":"石門","target_mw":22.0,"completed_mw":10.2746,"construction_mw":0.4941,"admin_mw":0.55,"planning_mw":24.6306,"remaining_mw":25.6747,"total_potential_mw":35.9493,"achievement_pct":46.7,"types":{"圳路":{"completed_mw":4.9328,"construction_mw":0.4941,"admin_mw":0.55,"planning_mw":0.6306},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":5.3418,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":24.0}}},{"name":"新竹","target_mw":15.0,"completed_mw":0.0,"construction_mw":0.0,"admin_mw":4.2687,"planning_mw":0.0,"remaining_mw":4.2687,"total_potential_mw":4.2687,"achievement_pct":0.0,"types":{"圳路":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":3.7688,"planning_mw":0.0},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.4999,"planning_mw":0.0}}},{"name":"苗栗","target_mw":18.0,"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.5609,"remaining_mw":0.5609,"total_potential_mw":0.5609,"achievement_pct":0.0,"types":{"圳路":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.5609},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0}}},{"name":"臺中","target_mw":44.0,"completed_mw":2.0314,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":32.4927,"remaining_mw":32.4927,"total_potential_mw":34.524,"achievement_pct":4.6,"types":{"圳路":{"completed_mw":2.0314,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":32.4927},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0}}},{"name":"南投","target_mw":22.0,"completed_mw":0.3441,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":11.2298,"remaining_mw":11.2298,"total_potential_mw":11.5739,"achievement_pct":1.6,"types":{"圳路":{"completed_mw":0.3441,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":11.2298},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0}}},{"name":"彰化","target_mw":88.0,"completed_mw":19.6849,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":21.1203,"remaining_mw":21.1203,"total_potential_mw":40.8053,"achievement_pct":22.4,"types":{"圳路":{"completed_mw":19.6849,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":21.1203},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0}}},{"name":"雲林","target_mw":80.0,"completed_mw":34.7805,"construction_mw":0.0,"admin_mw":53.5755,"planning_mw":12.17,"remaining_mw":65.7455,"total_potential_mw":100.526,"achievement_pct":43.5,"types":{"圳路":{"completed_mw":32.7858,"construction_mw":0.0,"admin_mw":53.5755,"planning_mw":12.17},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":1.9947,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0}}},{"name":"嘉南","target_mw":80.0,"completed_mw":38.3982,"construction_mw":0.0,"admin_mw":18.4566,"planning_mw":31.0739,"remaining_mw":49.5305,"total_potential_mw":87.9286,"achievement_pct":48.0,"types":{"圳路":{"completed_mw":15.9393,"construction_mw":0.0,"admin_mw":5.1626,"planning_mw":29.0739},"農業水庫":{"completed_mw":17.6702,"construction_mw":0.0,"admin_mw":13.294,"planning_mw":0.0},"埤塘":{"completed_mw":4.7887,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":2.0}}},{"name":"高雄","target_mw":44.0,"completed_mw":9.1471,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":19.8649,"remaining_mw":19.8649,"total_potential_mw":29.012,"achievement_pct":20.8,"types":{"圳路":{"completed_mw":3.2563,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":19.8649},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":5.8908,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0}}},{"name":"屏東","target_mw":51.0,"completed_mw":17.424,"construction_mw":0.0,"admin_mw":12.935,"planning_mw":20.0166,"remaining_mw":32.9516,"total_potential_mw":50.3756,"achievement_pct":34.2,"types":{"圳路":{"completed_mw":17.424,"construction_mw":0.0,"admin_mw":12.935,"planning_mw":20.0166},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0}}},{"name":"宜蘭","target_mw":26.0,"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":5.9476,"remaining_mw":5.9476,"total_potential_mw":5.9476,"achievement_pct":0.0,"types":{"圳路":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":5.9476},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0}}},{"name":"花蓮","target_mw":29.0,"completed_mw":0.0,"construction_mw":0.0,"admin_mw":23.1662,"planning_mw":7.4982,"remaining_mw":30.6644,"total_potential_mw":30.6644,"achievement_pct":0.0,"types":{"圳路":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":23.1662,"planning_mw":7.4982},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0}}},{"name":"臺東","target_mw":37.0,"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":30.14,"remaining_mw":30.14,"total_potential_mw":30.14,"achievement_pct":0.0,"types":{"圳路":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":29.09},"農業水庫":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":0.0},"埤塘":{"completed_mw":0.0,"construction_mw":0.0,"admin_mw":0.0,"planning_mw":1.05}}}],"completed_sites":[{"no":1,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳12-14號池","capacity_mw":0.4814,"completion_year":"106年","grid_date":"106/03/31","vendor":"大同股份有限公司","stage":"已完工"},{"no":2,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-12號池","capacity_mw":1.9824,"completion_year":"107年","grid_date":"107/04/25","vendor":"錸洋科技股份有限公司","stage":"已完工"},{"no":3,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-17號池","capacity_mw":1.9824,"completion_year":"107年","grid_date":"107/04/25","vendor":"錸洋科技股份有限公司","stage":"已完工"},{"no":4,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳3-6號池","capacity_mw":1.8522,"completion_year":"107年","grid_date":"107/04/27","vendor":"旭忠能源股份有限公司","stage":"已完工"},{"no":5,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳4-6號池","capacity_mw":1.9992,"completion_year":"107年","grid_date":"107/04/10","vendor":"旭忠能源股份有限公司","stage":"已完工"},{"no":6,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳8-19號池","capacity_mw":1.9992,"completion_year":"107年","grid_date":"107/04/20","vendor":"旭忠能源股份有限公司","stage":"已完工"},{"no":7,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳8-20號池","capacity_mw":1.9992,"completion_year":"106年","grid_date":"106/11/28","vendor":"旭忠能源股份有限公司","stage":"已完工"},{"no":8,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳8-24號池","capacity_mw":1.9992,"completion_year":"107年","grid_date":"107/03/27","vendor":"旭忠能源股份有限公司","stage":"已完工"},{"no":9,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳6-3號池","capacity_mw":1.8597,"completion_year":"107年","grid_date":"107/06/12","vendor":"禾碩綠電股份有限公司","stage":"已完工"},{"no":10,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳10-1號池","capacity_mw":1.9989,"completion_year":"107年","grid_date":"107/04/30","vendor":"禾碩綠電股份有限公司","stage":"已完工"},{"no":11,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳10-2號池","capacity_mw":1.9777,"completion_year":"107年","grid_date":"107/04/29","vendor":"禾碩綠電股份有限公司","stage":"已完工"},{"no":12,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳11-1號池","capacity_mw":1.9989,"completion_year":"107年","grid_date":"107/04/25","vendor":"禾碩綠電股份有限公司","stage":"已完工"},{"no":13,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳13-2號池","capacity_mw":1.9989,"completion_year":"107年","grid_date":"107/04/30","vendor":"禾碩綠電股份有限公司","stage":"已完工"},{"no":14,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳新豐1號池","capacity_mw":1.9989,"completion_year":"107年","grid_date":"107/04/29","vendor":"禾碩綠電股份有限公司","stage":"已完工"},{"no":15,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-4號池","capacity_mw":1.9958,"completion_year":"108年","grid_date":"108/09/16","vendor":"日景綠能股份有限公司","stage":"已完工"},{"no":16,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳4-6號池(二期擴充)","capacity_mw":4.6375,"completion_year":"108年","grid_date":"108/05/26","vendor":"華洋電業開發股份有限公司","stage":"已完工"},{"no":17,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳8-19號池(二期擴充)","capacity_mw":1.764,"completion_year":"108年","grid_date":"108/05/23","vendor":"華洋電業開發股份有限公司","stage":"已完工"},{"no":18,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳8-20號池(二期擴充)","capacity_mw":2.9808,"completion_year":"108年","grid_date":"108/05/23","vendor":"華洋電業開發股份有限公司","stage":"已完工"},{"no":19,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳8-24號池(二期擴充)","capacity_mw":4.1861,"completion_year":"108年","grid_date":"108/05/24","vendor":"華洋電業開發股份有限公司","stage":"已完工"},{"no":20,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳7-1號池","capacity_mw":1.8144,"completion_year":"108年","grid_date":"108/05/27","vendor":"達利能源股份有限公司","stage":"已完工"},{"no":21,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-2號池","capacity_mw":1.9872,"completion_year":"108年","grid_date":"108/04/29","vendor":"達利能源股份有限公司","stage":"已完工"},{"no":22,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-13號池","capacity_mw":1.878,"completion_year":"108年","grid_date":"108/11/30","vendor":"禧壹股份有限公司","stage":"已完工"},{"no":23,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-社子1號池","capacity_mw":1.998,"completion_year":"106年","grid_date":"106/12/31","vendor":"禧壹股份有限公司","stage":"已完工"},{"no":24,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-繞37B池","capacity_mw":1.0254,"completion_year":"107年","grid_date":"107/01/30","vendor":"禧壹股份有限公司","stage":"已完工"},{"no":25,"county":"新竹縣","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-湖口6A號池","capacity_mw":0.7056,"completion_year":"108年","grid_date":"108/04/17","vendor":"禧壹股份有限公司","stage":"已完工"},{"no":26,"county":"新竹縣","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-繞嶺64號池","capacity_mw":1.6128,"completion_year":"108年","grid_date":"108/04/23","vendor":"禧壹股份有限公司","stage":"已完工"},{"no":27,"county":"臺南市","type":"埤塘","mgmt":"嘉南","name":"埤塘-嘉南管理處-瓦磘埤","capacity_mw":1.2331,"completion_year":"107年","grid_date":"107/04/25","vendor":"崑鼎綠能環保(股)公司","stage":"已完工"},{"no":28,"county":"臺南市","type":"埤塘","mgmt":"嘉南","name":"埤塘-嘉南管理處-北勢埤","capacity_mw":1.998,"completion_year":"107年","grid_date":"107/12/22","vendor":"群利國際股份有限公司","stage":"已完工"},{"no":29,"county":"臺南市","type":"埤塘","mgmt":"嘉南","name":"埤塘-嘉南管理處-芒子芒埤","capacity_mw":1.5576,"completion_year":"108年","grid_date":"108/09/19","vendor":"厚聚能源開發股份有限公司","stage":"已完工"},{"no":30,"county":"高雄市","type":"埤塘","mgmt":"高雄","name":"埤塘-高雄管理處-下社埤","capacity_mw":1.6002,"completion_year":"107年","grid_date":"107/11/06","vendor":"京承能源股份有限公司","stage":"已完工"},{"no":31,"county":"高雄市","type":"埤塘","mgmt":"高雄","name":"埤塘-高雄管理處-三爺埤(一期)","capacity_mw":0.9996,"completion_year":"107年","grid_date":"107/10/05","vendor":"京承能源股份有限公司","stage":"已完工"},{"no":32,"county":"高雄市","type":"埤塘","mgmt":"高雄","name":"埤塘-高雄管理處-三爺埤(二期)","capacity_mw":0.9995,"completion_year":"112年","grid_date":"112/01/18","vendor":"京承能源股份有限公司","stage":"已完工"},{"no":33,"county":"嘉義縣","type":"埤塘","mgmt":"雲林","name":"埤塘-雲林管理處-大林水碓埤","capacity_mw":1.9947,"completion_year":"112年","grid_date":"112/03/09","vendor":"煌昕科技有限公司","stage":"已完工"},{"no":34,"county":"高雄市","type":"埤塘","mgmt":"高雄","name":"埤塘-高雄管理處-三爺埤(三期)","capacity_mw":0.2916,"completion_year":"112年","grid_date":"112/04/28","vendor":"京承能源股份有限公司","stage":"已完工"},{"no":35,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-濁幹線內寮放水路","capacity_mw":0.3282,"completion_year":"108年","grid_date":"108/06/28","vendor":"泰山綠能有限公司","stage":"已完工"},{"no":36,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-濁幹線(竹圍子段)","capacity_mw":0.9513,"completion_year":"108年","grid_date":"108/12/12","vendor":"泰山綠能有限公司","stage":"已完工"},{"no":37,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-濁幹線(六合橋至國1)","capacity_mw":12.0126,"completion_year":"108年","grid_date":"108/04/18\n","vendor":"維棋光電股份有限公司\n賢思股份有限公司\n德杉光電股份有限公司\n多峇股份有限公司\n福硫股份有限公司","stage":"已完工"},{"no":38,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-濁幹線(八卦池至六合橋)","capacity_mw":5.976,"completion_year":"108年","grid_date":"108/04/26","vendor":"合伍光電股份有限公司、聖韮光電股份有限公司、欣時股份有限公司","stage":"已完工"},{"no":39,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-新鹿場課圳1K+828-2K+460","capacity_mw":0.4997,"completion_year":"108年","grid_date":"108/12/30","vendor":"川生興業股份有限公司","stage":"已完工"},{"no":40,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-獅子頭圳一幹線二支線4K+609-4K+907","capacity_mw":0.216,"completion_year":"107年","grid_date":"107/12/28","vendor":"永唐有限公司","stage":"已完工"},{"no":41,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-社皮排水(灣內段)","capacity_mw":1.7505,"completion_year":"107年","grid_date":"107/11/06\n","vendor":"鑫旺光電股份有限公司","stage":"已完工"},{"no":42,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-社皮排水(崙頂段)","capacity_mw":2.871,"completion_year":"108年","grid_date":"108/03/12","vendor":"双建光電股份有限公司","stage":"已完工"},{"no":43,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-社皮圳幹線(玉成段、新興段)","capacity_mw":0.4474,"completion_year":"108年","grid_date":"108/04/23","vendor":"双建光電股份有限公司","stage":"已完工"},{"no":44,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-社皮排水(崙頂段、田厝段)","capacity_mw":1.9701,"completion_year":"109年","grid_date":"109/04/28","vendor":"開泰股份有限公司","stage":"已完工"},{"no":45,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-大陂圳1支線","capacity_mw":0.4991,"completion_year":"109年","grid_date":"109/06/08","vendor":"開泰股份有限公司","stage":"已完工"},{"no":46,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-北岸聯絡渠道","capacity_mw":5.4458,"completion_year":"109年","grid_date":"109/06/30","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":47,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-濁幹線(安慶段)","capacity_mw":0.1247,"completion_year":"109年","grid_date":"109/06/12","vendor":"新農電股份有限公司","stage":"已完工"},{"no":48,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-車城埤幹線","capacity_mw":0.4991,"completion_year":"109年","grid_date":"109/06/29","vendor":"開泰股份有限公司","stage":"已完工"},{"no":49,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-第四號給排水分線","capacity_mw":0.4997,"completion_year":"109年","grid_date":"109/09/21","vendor":"新晶光電有限公司","stage":"已完工"},{"no":50,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-新鹿場課圳1K+350-1K+830","capacity_mw":0.4129,"completion_year":"109年","grid_date":"109/10/08","vendor":"築展營造股份有限公司","stage":"已完工"},{"no":51,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-獅子頭圳一幹線二支線3K+762-4K+600","capacity_mw":0.7371,"completion_year":"109年","grid_date":"109/10/22","vendor":"永唐有限公司","stage":"已完工"},{"no":52,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-獅子頭圳一幹線二支線4K+986-5K+831","capacity_mw":0.7182,"completion_year":"109年","grid_date":"109/10/22","vendor":"永唐有限公司","stage":"已完工"},{"no":53,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-社皮圳導水路0K+37-0K+518","capacity_mw":0.4396,"completion_year":"109年","grid_date":"109/10/21","vendor":"雄利科技股份有限公司","stage":"已完工"},{"no":54,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-歸來排水支線","capacity_mw":0.4526,"completion_year":"109年","grid_date":"109/11/30","vendor":"開泰股份有限公司","stage":"已完工"},{"no":55,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳幹線(新洋段239、389地號)","capacity_mw":1.475,"completion_year":"109年","grid_date":"109/12/24","vendor":"全盛能源科技股份有限公司","stage":"已完工"},{"no":56,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-社皮排水(崙頂段2973地號)","capacity_mw":0.499,"completion_year":"110年","grid_date":"110/02/09","vendor":"開泰股份有限公司","stage":"已完工"},{"no":57,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-北幹線11K+836-15K+943","capacity_mw":0.576,"completion_year":"110年","grid_date":"110/05/11\n","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":58,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-北幹線22K+820-23K+070","capacity_mw":0.351,"completion_year":"110年","grid_date":"110/05/25","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":59,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-麻豆支線13K+207-15K+141","capacity_mw":3.276,"completion_year":"110年","grid_date":"110/06/01\n","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":60,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-海埔分線0K+270-0K+311","capacity_mw":1.0951,"completion_year":"110年","grid_date":"110/05/24","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":61,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-佳里興分線2K+226-2K+810","capacity_mw":0.5452,"completion_year":"110年","grid_date":"110/05/21\n","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":62,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-太西分線0K+120-0K+820","capacity_mw":0.4984,"completion_year":"110年","grid_date":"110/05/13","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":63,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-塭內分線5K+260-5K+975","capacity_mw":0.3159,"completion_year":"110年","grid_date":"110/05/25","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":64,"county":"臺中市","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-大肚圳(追分段)","capacity_mw":1.3728,"completion_year":"110年","grid_date":"110/05/27","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":65,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-莿仔埤圳幹線14K+344-16K+738","capacity_mw":1.584,"completion_year":"110年","grid_date":"110/07/30","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":66,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-北岸聯絡渠道(圳寮段)","capacity_mw":0.1203,"completion_year":"110年","grid_date":"110/09/13","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":67,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-北岸聯絡渠道4K+230-5K+128","capacity_mw":0.2966,"completion_year":"110年","grid_date":"110/10/28","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":68,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-東西三圳","capacity_mw":0.898,"completion_year":"110年","grid_date":"110/09/14","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":69,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-莿仔埤圳幹線17K+750-18K+725","capacity_mw":1.3666,"completion_year":"110年","grid_date":"110/09/17","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":70,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-莿仔埤圳幹線16K+750-17K+745","capacity_mw":1.2314,"completion_year":"110年","grid_date":"110/10/05","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":71,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-莿仔埤圳幹線18K+735-20K+50","capacity_mw":1.9994,"completion_year":"110年","grid_date":"110/11/09","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":72,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-永安圳導水路0K+395-0K+950","capacity_mw":0.4984,"completion_year":"110年","grid_date":"110/12/14","vendor":"雄利科技股份有限公司","stage":"已完工"},{"no":73,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-新園圳導水路","capacity_mw":0.6228,"completion_year":"110年","grid_date":"110/12/30","vendor":"和裕順股份有限公司","stage":"已完工"},{"no":74,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳幹線(香社段)","capacity_mw":0.8184,"completion_year":"110年","grid_date":"110/12/30","vendor":"和裕順股份有限公司","stage":"已完工"},{"no":75,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-莿仔埤圳幹線(犁頭厝段、稻香段、崙腳段)","capacity_mw":2.8815,"completion_year":"111年","grid_date":"111/01/10","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":76,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-東西二圳","capacity_mw":1.4332,"completion_year":"111年","grid_date":"111/01/13\n","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":77,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-福馬圳","capacity_mw":0.4995,"completion_year":"111年","grid_date":"111/01/20","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":78,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-濁幹線(永年高中至聯美大橋)竹寮段26、27地號","capacity_mw":1.104,"completion_year":"111年","grid_date":"111/03/05","vendor":"蓮華醫藥生技股份有限公司","stage":"已完工"},{"no":79,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-濁幹線(永年高中至聯美大橋)竹寮段1477地號","capacity_mw":1.2704,"completion_year":"111年","grid_date":"111/03/07","vendor":"綠順科技股份有限公司","stage":"已完工"},{"no":80,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-永安圳導水路1K+728-2K+033","capacity_mw":0.3356,"completion_year":"111年","grid_date":"111/04/06","vendor":"雄利科技股份有限公司","stage":"已完工"},{"no":81,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳幹線(新洋段1135地號)","capacity_mw":0.1184,"completion_year":"111年","grid_date":"111/05/09","vendor":"和裕順股份有限公司","stage":"已完工"},{"no":82,"county":"臺中市","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-大肚圳(溪州段AB區)","capacity_mw":0.6586,"completion_year":"111年","grid_date":"111/06/20","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":83,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-東西圳1K+824-12K+292","capacity_mw":0.1853,"completion_year":"111年","grid_date":"111/06/23","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":84,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-東西圳(陝西段、東興段)","capacity_mw":1.2724,"completion_year":"111年","grid_date":"111/09/16、","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":85,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-南北幹線","capacity_mw":0.4709,"completion_year":"111年","grid_date":"111/11/11、","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":86,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-永安圳導水路1K+260-1K+681","capacity_mw":0.4181,"completion_year":"111年","grid_date":"111/12/28","vendor":"雄利科技股份有限公司","stage":"已完工"},{"no":87,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-田尾支線","capacity_mw":0.3102,"completion_year":"111年","grid_date":"111/12/29","vendor":"國碩科技工業股份有限公司","stage":"已完工"},{"no":88,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-新茄荖圳A2","capacity_mw":0.0407,"completion_year":"112年","grid_date":"112/01/19","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":89,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-新茄荖圳A6","capacity_mw":0.0407,"completion_year":"112年","grid_date":"112/01/19","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":90,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-新茄荖圳A3","capacity_mw":0.0666,"completion_year":"112年","grid_date":"112/02/15","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":91,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-新茄荖圳A5","capacity_mw":0.0481,"completion_year":"112年","grid_date":"112/02/15","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":92,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-新茄荖圳A4","capacity_mw":0.0999,"completion_year":"112年","grid_date":"112/03/17","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":93,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-茄荖圳幹線B2","capacity_mw":0.0481,"completion_year":"112年","grid_date":"112/03/17","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":94,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-斗六大圳(第三工區)","capacity_mw":0.4811,"completion_year":"112年","grid_date":"112/03/25","vendor":"創光開發有限公司","stage":"已完工"},{"no":95,"county":"嘉義縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-大林一輪大排","capacity_mw":0.4993,"completion_year":"112年","grid_date":"112/03/27","vendor":"煜增有限公司","stage":"已完工"},{"no":96,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-斗六大圳(第一工區)","capacity_mw":0.8494,"completion_year":"112年","grid_date":"112/03/30","vendor":"煜增有限公司","stage":"已完工"},{"no":97,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-斗六大圳(第二工區)","capacity_mw":0.4217,"completion_year":"112年","grid_date":"112/04/17","vendor":"創光開發有限公司","stage":"已完工"},{"no":98,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-獅子頭圳一幹線三支線(廣福段)","capacity_mw":1.0853,"completion_year":"112年","grid_date":"112/04/26","vendor":"永唐有限公司","stage":"已完工"},{"no":99,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-南幹支線(崙子頂段)","capacity_mw":0.4963,"completion_year":"112年","grid_date":"112/06/06","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":100,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-安定分線(港口段)","capacity_mw":0.2693,"completion_year":"112年","grid_date":"112/06/16","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":101,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線5區","capacity_mw":0.4218,"completion_year":"112年","grid_date":"112/06/17","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":102,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線6區","capacity_mw":0.222,"completion_year":"112年","grid_date":"112/06/17","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":103,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線2區","capacity_mw":0.4958,"completion_year":"112年","grid_date":"112/06/19","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":104,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-安定分線(港子尾段)","capacity_mw":1.3517,"completion_year":"112年","grid_date":"112/06/21","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":105,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線8區","capacity_mw":0.4988,"completion_year":"112年","grid_date":"112/06/27","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":106,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線9區","capacity_mw":0.3286,"completion_year":"112年","grid_date":"112/06/28","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":107,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-南幹支線(竹子腳段)","capacity_mw":0.6204,"completion_year":"112年","grid_date":"112/06/29","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":108,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-廣安圳導水路","capacity_mw":1.9995,"completion_year":"112年","grid_date":"112/06/30","vendor":"宇泰國際開發工程有限公司","stage":"已完工"},{"no":109,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-新園圳幹線","capacity_mw":0.494,"completion_year":"112年","grid_date":"112/06/30","vendor":"和裕順股份有限公司","stage":"已完工"},{"no":110,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳2支線","capacity_mw":0.7656,"completion_year":"112年","grid_date":"112/06/30","vendor":"和裕順股份有限公司","stage":"已完工"},{"no":111,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-善化支線(北子店段二小段)","capacity_mw":0.4013,"completion_year":"112年","grid_date":"112/07/03","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":112,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線1區","capacity_mw":0.4958,"completion_year":"112年","grid_date":"112/07/06","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":113,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線3區","capacity_mw":0.4958,"completion_year":"112年","grid_date":"112/07/07","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":114,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-南幹支線(太子廟段)","capacity_mw":0.7762,"completion_year":"112年","grid_date":"112/07/07","vendor":"博斯太陽能股份有限公司","stage":"已完工"},{"no":115,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線11區","capacity_mw":0.444,"completion_year":"112年","grid_date":"112/07/14","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":116,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線7區","capacity_mw":0.2309,"completion_year":"112年","grid_date":"112/07/21","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":117,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線4區","capacity_mw":0.666,"completion_year":"112年","grid_date":"112/09/23","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":118,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線10區","capacity_mw":0.4381,"completion_year":"112年","grid_date":"112/12/14","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":119,"county":"桃園市","type":"圳路","mgmt":"石門","name":"圳路-石門管理處-石門大圳-繞嶺支渠","capacity_mw":0.9187,"completion_year":"112年","grid_date":"112/12/15、","vendor":"聚恆科技股份有限公司","stage":"已完工"},{"no":120,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線都計A區","capacity_mw":0.3182,"completion_year":"112年","grid_date":"112/12/19","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":121,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-學甲分線都計B區","capacity_mw":0.3108,"completion_year":"112年","grid_date":"112/12/19","vendor":"日益智慧能源股份有限公司","stage":"已完工"},{"no":122,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-小田支線水系-小田支線三區(青山段)","capacity_mw":0.8239,"completion_year":"112年","grid_date":"112/12/29","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":123,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-小田支線水系-小田支線第二放水路","capacity_mw":0.6687,"completion_year":"112年","grid_date":"112/12/29","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":124,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-永安圳導水路(玉成段)","capacity_mw":0.4499,"completion_year":"113年","grid_date":"113/03/29","vendor":"雄利科技股份有限公司","stage":"已完工"},{"no":125,"county":"嘉義縣","type":"農業水庫","mgmt":"嘉南","name":"農業水庫-嘉南管理處-內埔子水庫","capacity_mw":1.973,"completion_year":"107年","grid_date":"107/04/24","vendor":"崑鼎綠能環保(股)公司","stage":"已完工"},{"no":126,"county":"臺南市","type":"農業水庫","mgmt":"嘉南","name":"農業水庫-嘉南管理處-鹽水埤水庫","capacity_mw":1.992,"completion_year":"107年","grid_date":"107/12/29","vendor":"海利普電子科技股份有限公司","stage":"已完工"},{"no":127,"county":"臺南市","type":"農業水庫","mgmt":"嘉南","name":"農業水庫-嘉南管理處-烏山頭水庫","capacity_mw":13.7052,"completion_year":"111年","grid_date":"111/05/23","vendor":"星曄綠能股份有限公司","stage":"已完工"},{"no":128,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-小田支線水系-小田支線三區(崙埤段)","capacity_mw":1.498,"completion_year":"113年","grid_date":"113/07/15","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":129,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-小田支線水系-小田支線三區(東湖段)","capacity_mw":1.9998,"completion_year":"113年","grid_date":"113/07/15","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":130,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-小田支線水系-頂寮分線(中坑-糞箕湖段)","capacity_mw":1.3225,"completion_year":"113年","grid_date":"113/07/12","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":131,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-小田支線水系-頂寮分線(中坑段)","capacity_mw":1.2312,"completion_year":"113年","grid_date":"113/07/12","vendor":"中租迪和股份有限公司","stage":"已完工"},{"no":132,"county":"桃園市","type":"圳路","mgmt":"石門","name":"圳路-石門管理處-石門大圳-二重溪段","capacity_mw":0.1809,"completion_year":"113年","grid_date":"113/08/12","vendor":"耀盈能源科技股份有限公司","stage":"已完工"},{"no":133,"county":"桃園市","type":"圳路","mgmt":"石門","name":"圳路-石門管理處-石門大圳-東流段","capacity_mw":1.836,"completion_year":"113年","grid_date":"113/08/12、","vendor":"耀盈能源科技股份有限公司","stage":"已完工"},{"no":134,"county":"高雄市","type":"埤塘","mgmt":"高雄","name":"埤塘-高雄管理處-三鎮埤","capacity_mw":1.9999,"completion_year":"113年","grid_date":"113/11/08","vendor":"京承能源股份有限公司","stage":"已完工"},{"no":135,"county":"桃園市","type":"圳路","mgmt":"石門","name":"圳路-石門管理處-石門大圳上段","capacity_mw":1.9971,"completion_year":"114年","grid_date":"","vendor":"耀盈能源科技股份有限公司","stage":"已完工"}],"construction_sites":[{"no":1,"county":"桃園市","type":"圳路","mgmt":"桃園","name":"圳路-桃園管理處-桃園大圳(18k-25k)","capacity_mw":1.7455,"expected_date":"114/8","note":"與台電細部協商","progress":"待施工","vendor":"耀盈能源科技股份有限公司","stage":"待施工"},{"no":2,"county":"桃園市","type":"圳路","mgmt":"桃園","name":"圳路-桃園管理處-坑子口圳","capacity_mw":0.2942,"expected_date":"114/8","note":"與台電細部協商","progress":"待施工","vendor":"耀盈能源科技股份有限公司","stage":"待施工"},{"no":1,"county":"桃園市","type":"圳路","mgmt":"石門","name":"圳路-石門管理處-石門大圳-草湳坡段","capacity_mw":0.4941,"expected_date":"113/10","note":"暫緩施工","progress":"停工中","vendor":"耀盈能源科技股份有限公司","stage":"停工中"}],"admin_sites":[{"no":1,"county":"臺中市","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-大肚圳-(溪州段C區)","capacity_mw":0.2703,"progress":"已撤案","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":2,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-北港支線水系-北港支線一區","capacity_mw":22.6166,"progress":"電業籌設、容許使用申請中(台電併聯審查已完成)","vendor":"耀盈能源科技股份有限公司","stage":"行政程序中"},{"no":3,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-北港支線水系-北港支線二區","capacity_mw":3.6437,"progress":"電業籌設、容許使用申請中(台電併聯審查已完成)","vendor":"耀盈能源科技股份有限公司","stage":"行政程序中"},{"no":4,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-北港支線水系-水井分線一區","capacity_mw":1.8876,"progress":"電業籌設、容許使用申請中(台電併聯審查已完成)","vendor":"耀盈能源科技股份有限公司","stage":"行政程序中"},{"no":5,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-北港支線水系-後溝子分線","capacity_mw":3.4276,"progress":"電業籌設、容許使用申請中(台電併聯審查已完成)","vendor":"耀盈能源科技股份有限公司","stage":"行政程序中"},{"no":6,"county":"新竹縣","type":"圳路","mgmt":"新竹","name":"圳路-新竹管理處-竹東圳幹線","capacity_mw":0.0999,"progress":"台電併聯審查籌辦中","vendor":"嘉昱能源有限公司","stage":"行政程序中"},{"no":7,"county":"新竹縣","type":"圳路","mgmt":"新竹","name":"圳路-新竹管理處-貓兒錠幹線","capacity_mw":0.3855,"progress":"台電併聯審查籌辦中","vendor":"嘉昱能源有限公司","stage":"行政程序中"},{"no":8,"county":"新竹縣","type":"圳路","mgmt":"新竹","name":"圳路-新竹管理處-貓兒錠大排1","capacity_mw":0.3537,"progress":"台電併聯審查籌辦中","vendor":"嘉昱能源有限公司","stage":"行政程序中"},{"no":9,"county":"新竹縣","type":"圳路","mgmt":"新竹","name":"圳路-新竹管理處-貓兒錠幹線8支線","capacity_mw":0.4581,"progress":"台電併聯審查籌辦中","vendor":"嘉昱能源有限公司","stage":"行政程序中"},{"no":10,"county":"新竹縣","type":"圳路","mgmt":"新竹","name":"圳路-新竹管理處-貓兒錠大排2","capacity_mw":0.4999,"progress":"台電併聯審查籌辦中","vendor":"嘉昱能源有限公司","stage":"行政程序中"},{"no":11,"county":"新竹縣","type":"圳路","mgmt":"新竹","name":"圳路-新竹管理處-翁厝南幹線","capacity_mw":0.3722,"progress":"台電併聯審查籌辦中","vendor":"嘉昱能源有限公司","stage":"行政程序中"},{"no":12,"county":"新竹縣","type":"圳路","mgmt":"新竹","name":"圳路-新竹管理處-澎湖窟圳","capacity_mw":0.4999,"progress":"台電併聯審查籌辦中","vendor":"嘉昱能源有限公司","stage":"行政程序中"},{"no":13,"county":"新竹縣","type":"圳路","mgmt":"新竹","name":"圳路-新竹管理處-澎湖窟圳3支線","capacity_mw":0.0999,"progress":"台電併聯審查籌辦中","vendor":"嘉昱能源有限公司","stage":"行政程序中"},{"no":14,"county":"新竹市","type":"圳路","mgmt":"新竹","name":"圳路-新竹管理處-港南大排1","capacity_mw":0.4999,"progress":"容許使用申請中(台電併聯審查已完成)","vendor":"嘉昱能源有限公司","stage":"行政程序中"},{"no":15,"county":"新竹市","type":"圳路","mgmt":"新竹","name":"圳路-新竹管理處-港南大排2","capacity_mw":0.4999,"progress":"容許使用申請中(台電併聯審查已完成)","vendor":"嘉昱能源有限公司","stage":"行政程序中"},{"no":16,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-斗六大圳及濁幹線第三號進水口導水路","capacity_mw":12.0,"progress":"容許使用申請中(台電併聯審查已完成)","vendor":"昱嘉能源有限公司","stage":"行政程序中"},{"no":17,"county":"嘉義縣","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-八掌溪支線等3線","capacity_mw":5.1626,"progress":"台電併聯審查申請中","vendor":"昱鼎能源科技開發(股)公司","stage":"行政程序中"},{"no":18,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-縣官埤中排四(含縣官埤幹線)","capacity_mw":0.9996,"progress":"台電併聯審查申請中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":19,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-溪口排水","capacity_mw":3.9997,"progress":"容許使用申請中(台電併聯審查申請中)","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":20,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-太平渠幹線(高寮段)","capacity_mw":1.2085,"progress":"容許使用籌辦中(台電併聯審查申請中)","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":21,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-太平渠幹線(泰林段)","capacity_mw":2.0204,"progress":"容許使用籌辦中(台電併聯審查申請中)","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":22,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-太平渠幹線(神農段)","capacity_mw":1.5182,"progress":"容許使用籌辦中(台電併聯審查申請中)","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":23,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-太平渠幹線(哈拉灣段)","capacity_mw":2.4456,"progress":"容許使用籌辦中(台電併聯審查申請中)","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":24,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-濁幹線(三合里)","capacity_mw":10.0,"progress":"容許使用申請中(台電併聯審查已完成)","vendor":"中租電力科技股份有限公司","stage":"行政程序中"},{"no":25,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-東圳第一中排","capacity_mw":3.5169,"progress":"台電併聯審查籌辦中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":26,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-廣安圳導水路(下游)","capacity_mw":2.3032,"progress":"台電併聯審查籌辦中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":27,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-石頭埤排水","capacity_mw":0.4827,"progress":"台電併聯審查籌辦中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":28,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-濫圳幹線","capacity_mw":1.105,"progress":"台電併聯審查籌辦中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":29,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-濫圳中排2","capacity_mw":0.3405,"progress":"台電併聯審查籌辦中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":30,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳四支線、萬丹圳四支線小給二之一","capacity_mw":0.5388,"progress":"台電併聯審查籌辦中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":31,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳幹線(一期)","capacity_mw":0.464,"progress":"台電併聯審查籌辦中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":32,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳幹線(二期)","capacity_mw":1.0692,"progress":"台電併聯審查籌辦中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":33,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳幹線(三期)","capacity_mw":0.533,"progress":"台電併聯審查籌辦中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":34,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳第六支線中排二(四期)","capacity_mw":0.4488,"progress":"台電併聯審查籌辦中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":35,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳第九支線中排四、萬丹圳第六支線小排四之九、萬丹圳第六支線","capacity_mw":1.1333,"progress":"台電併聯審查籌辦中","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":36,"county":"桃園市","type":"圳路","mgmt":"石門","name":"圳路-石門管理處-過嶺支渠","capacity_mw":0.55,"progress":"申請台電饋線保留中","vendor":"晶成科技股份有限公司","stage":"行政程序中"},{"no":37,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-源城排水","capacity_mw":2.677,"progress":"投資計畫書審查完畢","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":38,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-新城圳幹線","capacity_mw":0.821,"progress":"投資計畫書審查完畢","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":39,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-豐裡排水","capacity_mw":0.547,"progress":"投資計畫書審查完畢","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":40,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-林田圳幹線","capacity_mw":0.747,"progress":"投資計畫書審查完畢","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":41,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-吉安圳","capacity_mw":3.1888,"progress":"投資計畫書審查完畢","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":42,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-林田圳2支線","capacity_mw":1.309,"progress":"投資計畫書審查完畢","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":43,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-豐村圳2支線","capacity_mw":0.894,"progress":"投資計畫書審查完畢","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":44,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-平林圳林榮支線","capacity_mw":1.79,"progress":"投資計畫書審查完畢","vendor":"中租迪和股份有限公司","stage":"行政程序中"},{"no":1,"county":"新竹縣","type":"埤塘","mgmt":"新竹","name":"埤塘-新竹管理處-坪林人工蓄水池","capacity_mw":0.4999,"progress":"台電併聯審查籌辦中","vendor":"嘉昱能源有限公司","stage":"行政程序中"},{"no":1,"county":"臺南市","type":"農業水庫","mgmt":"嘉南","name":"農業水庫-嘉南管理處-烏山頭水庫(二期)","capacity_mw":13.294,"progress":"電業籌設中","vendor":"星曄綠能股份有限公司","stage":"行政程序中"}],"planning_sites":[{"no":1,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-三星排水人和排水","capacity_mw":0.9368,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":2,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-月眉六支排水","capacity_mw":0.961,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":3,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-月眉圳幹線(上游段)","capacity_mw":0.3062,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":4,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-月眉圳幹線(下游段)","capacity_mw":0.2957,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":5,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-充館圳幹線充公支線","capacity_mw":0.6,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":6,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-吧荖鬱排水","capacity_mw":0.608,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":7,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-金覆興排水(深洲段)","capacity_mw":0.3,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":8,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-金覆興排水(深賢段)","capacity_mw":0.5,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":9,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-浮洲排水","capacity_mw":0.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":10,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-深溝排水(深洲段)","capacity_mw":1.1,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":11,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-深溝排水(深惠段)","capacity_mw":0.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":12,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-深溝排水(深福段)","capacity_mw":0.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":13,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-莊錦發排水","capacity_mw":0.09,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":14,"county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-黃德記排水三民開蘭十中排","capacity_mw":0.25,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":15,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-平林圳1支線","capacity_mw":0.5862,"progress":"申請管變","vendor":"","stage":"規劃推動-招商中"},{"no":16,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-平林圳林榮支線(擴充)","capacity_mw":2.4881,"progress":"申請管變","vendor":"","stage":"規劃推動-招商中"},{"no":17,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-林田圳2支線(擴充)","capacity_mw":0.9478,"progress":"申請管變","vendor":"","stage":"規劃推動-招商中"},{"no":18,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-林田圳幹線(擴充)","capacity_mw":0.2817,"progress":"申請管變","vendor":"","stage":"規劃推動-招商中"},{"no":19,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-長良圳2幹線-第1期","capacity_mw":1.3853,"progress":"申請管變","vendor":"","stage":"規劃推動-招商中"},{"no":20,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-長良圳2幹線-第2期","capacity_mw":1.1255,"progress":"申請管變","vendor":"","stage":"規劃推動-招商中"},{"no":21,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-新城圳幹線(擴充)","capacity_mw":0.1755,"progress":"申請管變","vendor":"","stage":"規劃推動-招商中"},{"no":22,"county":"花蓮縣","type":"圳路","mgmt":"花蓮","name":"圳路-花蓮管理處-豐裡排水(擴充)","capacity_mw":0.5081,"progress":"申請管變","vendor":"","stage":"規劃推動-招商中"},{"no":23,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-北投新圳幹線","capacity_mw":0.987,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":24,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-北投新圳幹線(鳥嘴潭)","capacity_mw":6.94,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":25,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-后溪支圳","capacity_mw":0.532,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":26,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-守城份圳幹線","capacity_mw":0.287,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":27,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-柳枝腳圳北分線","capacity_mw":0.06,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":28,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-頂過溪大排第2中排","capacity_mw":0.6659,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":29,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-9-3-1三快排水支線","capacity_mw":0.3808,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":30,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-九塊圳幹線","capacity_mw":0.99,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":31,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-大陂圳四支線","capacity_mw":0.4989,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":32,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-大陂圳幹線","capacity_mw":1.8179,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":33,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-大湖圳大排(含濫圳導水路)","capacity_mw":1.9448,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":34,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-北勢仔埤幹線","capacity_mw":0.816,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":35,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-台拓圳導水路","capacity_mw":0.499,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":36,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-四支線","capacity_mw":0.4539,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":37,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-竹田區農地重劃區中排七","capacity_mw":0.923,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":38,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-里港圳幹線","capacity_mw":3.1232,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":39,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-社皮排水(崙頂段720)","capacity_mw":0.4452,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":40,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳第一抽水廠","capacity_mw":0.5669,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":41,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳第三支線","capacity_mw":0.8242,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":42,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳第三支線中排四","capacity_mw":1.2964,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":43,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳第六支線、萬丹圳第十支線中排四","capacity_mw":0.4084,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":44,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-縣官埤幹線(新勢段607等)","capacity_mw":0.4274,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":45,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-縣官埤舊幹線","capacity_mw":0.9108,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":46,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-鴨母寮圳幹線","capacity_mw":0.837,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":47,"county":"苗栗縣","type":"圳路","mgmt":"苗栗","name":"圳路-苗栗管理處-水尾大排","capacity_mw":0.461,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":48,"county":"苗栗縣","type":"圳路","mgmt":"苗栗","name":"圳路-苗栗管理處-後龍圳幹線","capacity_mw":0.0999,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":49,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-七輪中排","capacity_mw":1.0737,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":50,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-九甲圍小組中排十(下游段)","capacity_mw":0.4162,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":51,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-九鬮支線","capacity_mw":0.6083,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":52,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-大寮圳一幹線","capacity_mw":0.27,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":53,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-大寮圳二幹線","capacity_mw":0.8347,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":54,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-大寮圳導水幹線","capacity_mw":0.414,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":55,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-中甲排水(阿蓮段)","capacity_mw":2.168,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":56,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-中甲排水(福蓮段)","capacity_mw":1.25,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":57,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-仕隆圳小組中排一之六","capacity_mw":0.349,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":58,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-百甲圳","capacity_mw":1.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":59,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-老公堀排水","capacity_mw":1.66,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":60,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-邦復坑圳三支線","capacity_mw":0.4736,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":61,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-曹公圳沉砂池","capacity_mw":0.3244,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":62,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-曹公圳導水幹線(大寮區)","capacity_mw":1.5593,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":63,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-曹公圳導水幹線(大樹區)","capacity_mw":1.1947,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":64,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-曹公新圳幹線(仁武區)","capacity_mw":0.2555,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":65,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-曹公新圳幹線(鳥松區)","capacity_mw":0.6232,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":66,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-陷後坑排水","capacity_mw":2.144,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":67,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-頂鹽田小組中排七(中游段)","capacity_mw":0.2249,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":68,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-復興渠幹線","capacity_mw":1.475,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":69,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-復興渠幹線(復安段)","capacity_mw":0.12,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":70,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-𥓞口圳前潭溝給排水路","capacity_mw":0.78,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":71,"county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-𥓞口圳第三號給排","capacity_mw":0.6462,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":72,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-埔姜崙分線","capacity_mw":1.12,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":73,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-馬公厝支線","capacity_mw":3.38,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":74,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-馬公厝支線放水路","capacity_mw":0.8,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":75,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-崙背支線(西榮段)","capacity_mw":1.8,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":76,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-崙背支線(成功段)","capacity_mw":0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":77,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-崙背支線(阿勸小給一)","capacity_mw":0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":78,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-崙背支線(崙前小給3)","capacity_mw":0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":79,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-崙背支線(崙前小給3-1)","capacity_mw":0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":80,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-貓兒干支線(貓兒干支線)","capacity_mw":1.1,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":81,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-貓兒干支線(西崙背小給三)","capacity_mw":0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":82,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-貓兒干支線(新街子分線)","capacity_mw":0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":83,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-貓兒干支線(西崙背小排3-5)","capacity_mw":0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":84,"county":"雲林縣","type":"圳路","mgmt":"雲林","name":"圳路-雲林管理處-龍岩支線","capacity_mw":3.97,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":85,"county":"嘉義縣","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-中洋子支線等3線","capacity_mw":0.942,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":86,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-太子宮分線","capacity_mw":0.96,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":87,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-太子宮分線等6線","capacity_mw":3.41,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":88,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-西港分線等2線","capacity_mw":1.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":89,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-岸內分線","capacity_mw":0.69,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":90,"county":"嘉義縣","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-東石支線(古民段)","capacity_mw":0.274,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":91,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-查畝營支線等2線","capacity_mw":0.63,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":92,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-麻豆支線等6線","capacity_mw":5.77,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":93,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-漚汪分線","capacity_mw":0.613,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":94,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-劉厝分線","capacity_mw":0.747,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":95,"county":"臺南市","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-蕭瓏分線","capacity_mw":0.734,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":96,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-西南角地區-永基三圳北幹線支線","capacity_mw":2.6747,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":97,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-西南角地區-深耕二、三圳","capacity_mw":7.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":98,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-南一幹線","capacity_mw":1.983,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":99,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-莿仔埤圳二林鎮犁頭厝段","capacity_mw":1.5,"progress":"申請管變","vendor":"","stage":"規劃推動-招商中"},{"no":100,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-頭汴圳、新圳及南分圳","capacity_mw":5.5,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":101,"county":"臺中市","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-后里圳五支線","capacity_mw":2.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":102,"county":"臺中市","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-后里圳幹線","capacity_mw":3.1724,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":103,"county":"苗栗縣","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-社苓支線","capacity_mw":8.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":104,"county":"臺中市","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-虎眼一圳","capacity_mw":5.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":105,"county":"苗栗縣","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-濁水支線","capacity_mw":10.8,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":106,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳1支線","capacity_mw":1.88,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":107,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳2支線","capacity_mw":0.79,"progress":"規劃評估","vendor":"0","stage":"規劃推動-招商中"},{"no":108,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳4支線","capacity_mw":1.23,"progress":"規劃評估","vendor":"0","stage":"規劃推動-招商中"},{"no":109,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳中排7","capacity_mw":0.15,"progress":"規劃評估","vendor":"0","stage":"規劃推動-招商中"},{"no":110,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳第8排水","capacity_mw":0.15,"progress":"規劃評估","vendor":"0","stage":"規劃推動-招商中"},{"no":111,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳幹線(利卡夢段)","capacity_mw":0.51,"progress":"規劃評估","vendor":"0","stage":"規劃推動-招商中"},{"no":112,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳幹線(泰安段)","capacity_mw":1.45,"progress":"規劃評估","vendor":"0","stage":"規劃推動-招商中"},{"no":113,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳幹線(班鳩段)","capacity_mw":2.47,"progress":"規劃評估","vendor":"0","stage":"規劃推動-招商中"},{"no":114,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳幹線(新田新園段)","capacity_mw":0.32,"progress":"規劃評估","vendor":"0","stage":"規劃推動-招商中"},{"no":115,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南圳知本農場支線","capacity_mw":1.86,"progress":"規劃評估","vendor":"0","stage":"規劃推動-招商中"},{"no":116,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南圳幹線(上岩灣段)","capacity_mw":2.5,"progress":"規劃評估","vendor":"0","stage":"規劃推動-招商中"},{"no":117,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南圳幹線(南清段)","capacity_mw":1.91,"progress":"規劃評估","vendor":"0","stage":"規劃推動-招商中"},{"no":118,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南圳幹線(豐川段)","capacity_mw":2.9,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":119,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南圳幹線(豐富段)","capacity_mw":2.14,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":120,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-重慶排水","capacity_mw":0.47,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":121,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-康樂中排2、康樂中排3、康樂大排","capacity_mw":2.19,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":122,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-賓朗排水","capacity_mw":0.78,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":123,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-豐源圳幹線","capacity_mw":0.95,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":124,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(月美段)","capacity_mw":0.45,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":125,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(月野段)","capacity_mw":0.12,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":126,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(西莊段)","capacity_mw":0.38,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":127,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(隆興段)","capacity_mw":0.35,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":128,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(瑞豐段)","capacity_mw":0.42,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":129,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(瑞豐段2)","capacity_mw":0.72,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":130,"county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳導水路","capacity_mw":2.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":131,"county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-頂茄荖大排第1中排","capacity_mw":0.7138,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":132,"county":"彰化縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-新圳","capacity_mw":0.73,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":133,"county":"臺中市","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-同安北圳","capacity_mw":0.3142,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":134,"county":"臺中市","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-六股排水","capacity_mw":3.05,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":135,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-八堡一圳","capacity_mw":2.0141,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":136,"county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-西溝","capacity_mw":0.4485,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":137,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-縣官埤幹線","capacity_mw":0.7333,"progress":"台電併聯審查籌辦中","vendor":"","stage":"規劃推動-招商中"},{"no":138,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-頓物埤中排二","capacity_mw":0.7659,"progress":"台電併聯審查籌辦中","vendor":"","stage":"規劃推動-招商中"},{"no":139,"county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-林文埤幹線","capacity_mw":1.3536,"progress":"台電併聯審查籌辦中","vendor":"","stage":"規劃推動-招商中"},{"no":140,"county":"桃園市","type":"圳路","mgmt":"石門","name":"圳路-石門管理處-石門大圳上段-東陵段1311","capacity_mw":0.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":141,"county":"桃園市","type":"圳路","mgmt":"石門","name":"圳路-石門管理處-石門大圳上段-東陵段1313","capacity_mw":0.4306,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":142,"county":"嘉義縣","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-朴子支線等12線","capacity_mw":13.3039,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":143,"county":"臺中市","type":"圳路","mgmt":"台中","name":"圳路-臺中管理處-大肚圳-(溪州段C區)","capacity_mw":0.2703,"progress":"已撤案","vendor":"","stage":"規劃推動-招商中"},{"no":1,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-員24B","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":2,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-員35池","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":3,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-員55B池","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":4,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-員8號池","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":5,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-員特1","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":6,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-員特2","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":7,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-過39(40A)","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":8,"county":"新竹縣","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-過58號","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":9,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-過61B","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":10,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-環17B","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":11,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-環26A","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":12,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-環26B","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":13,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-環42B","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":14,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-繞13","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":15,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-繞38","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":16,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-繞47","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":17,"county":"新竹縣","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-繞嶺54B池","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":18,"county":"桃園市","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-繞嶺58池","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":19,"county":"新竹縣","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-繞嶺65B池","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":20,"county":"新竹縣","type":"埤塘","mgmt":"石門","name":"埤塘-石門管理處-繞嶺69池","capacity_mw":1.2,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":21,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳11-2號池","capacity_mw":1.9091,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":22,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳5-4號池","capacity_mw":1.984,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":23,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳6-1號池","capacity_mw":1.9843,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":24,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳6-2號池","capacity_mw":0.9922,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":25,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳7-2號池","capacity_mw":1.9976,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":26,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳7-3號池","capacity_mw":1.934,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":27,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳7-4號池","capacity_mw":1.98,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":28,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳7-5號池","capacity_mw":1.8954,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":29,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-11號池","capacity_mw":1.9989,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":30,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-12號池(二期擴充)","capacity_mw":3.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":31,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-15號池","capacity_mw":0.6954,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":32,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-16號池","capacity_mw":1.9843,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":33,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-18號池","capacity_mw":1.9984,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":34,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-1號池","capacity_mw":0.983,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":35,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-3號池","capacity_mw":1.1997,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":36,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳8-6號池","capacity_mw":1.98,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":37,"county":"新竹縣","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-光復圳9-2號池","capacity_mw":1.835,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":38,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳10-16號池","capacity_mw":4.068,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":39,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳10-19號池","capacity_mw":9.5638,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":40,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳10-20號池","capacity_mw":3.341,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":41,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳2-10號池","capacity_mw":1.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":42,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳5-11號池","capacity_mw":8.21,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":43,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳6-10號池","capacity_mw":3.5568,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":44,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳6-9號池","capacity_mw":2.604,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":45,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳7-12號池","capacity_mw":6.6698,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":46,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳7-13號池","capacity_mw":5.7534,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":47,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳7-14號池","capacity_mw":3.4109,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":48,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳7-15號池","capacity_mw":4.2286,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":49,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳8-12號池","capacity_mw":1.9952,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":50,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳8-32號池","capacity_mw":1.9988,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":51,"county":"桃園市","type":"埤塘","mgmt":"桃園","name":"埤塘-桃園管理處-桃園大圳8-33號池","capacity_mw":1.9988,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":52,"county":"臺南市","type":"埤塘","mgmt":"嘉南","name":"埤塘-嘉南管理處-烏瓦磘埤","capacity_mw":2.0,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"},{"no":53,"county":"臺東縣","type":"埤塘","mgmt":"臺東","name":"埤塘-臺東管理處-馬背調整池","capacity_mw":1.05,"progress":"規劃評估","vendor":"","stage":"規劃推動-招商中"}],"cancelled_sites":[{"year":112,"subcategory":"全案解約","county":"臺中市","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-后里圳五支線","capacity_mw":2.0,"contract":"后里圳五支線太陽光電發電系統計畫","vendor":"旭愛能源股份有限公司","date":"112/10/01","reason":"縣府不同意土地許可使用、廠商履保金繳納問題","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-八堡二圳","capacity_mw":0.7402,"contract":"八堡二圳幹線太陽能發電系統計畫","vendor":"中租迪和股份有限公司","date":"112/10/25","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-西南角地區-莿仔埤聯絡渠道","capacity_mw":3.6371,"contract":"彰化縣西南角地區太陽能發電系統計畫","vendor":"中租迪和股份有限公司","date":"112/06/25","reason":"契約到期失效","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-西南角地區-永基三圳北幹線支線","capacity_mw":2.6747,"contract":"彰化縣西南角地區太陽能發電系統計畫","vendor":"中租迪和股份有限公司","date":"112/06/25","reason":"契約到期失效","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-西南角地區-深耕二、三圳","capacity_mw":7.0,"contract":"彰化縣西南角地區太陽能發電系統計畫","vendor":"中租迪和股份有限公司","date":"112/06/25","reason":"契約到期失效","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-清水中排一","capacity_mw":0.531,"contract":"清水中排一等5處圳路土地設置太陽光電發電設備計畫","vendor":"玖基企業股份有限公司","date":"112/09/13","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-上平中排一","capacity_mw":0.3102,"contract":"清水中排一等5處圳路土地設置太陽光電發電設備計畫","vendor":"玖基企業股份有限公司","date":"112/09/13","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-上平中排四","capacity_mw":0.2531,"contract":"清水中排一等5處圳路土地設置太陽光電發電設備計畫","vendor":"玖基企業股份有限公司","date":"112/09/13","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-莿仔寮支線公明中排二","capacity_mw":0.1753,"contract":"清水中排一等5處圳路土地設置太陽光電發電設備計畫","vendor":"玖基企業股份有限公司","date":"112/09/13","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-旗山圳一幹三支線","capacity_mw":0.175,"contract":"清水中排一等5處圳路土地設置太陽光電發電設備計畫","vendor":"玖基企業股份有限公司","date":"112/09/13","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-獅子頭圳一幹一支線","capacity_mw":1.9899,"contract":"獅子頭圳一幹一支線等 6 處圳路土地設置太陽光電發電設備計畫","vendor":"玖基企業股份有限公司","date":"112/11/24","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-獅子頭圳一幹二支線(半廍段)","capacity_mw":0.3213,"contract":"獅子頭圳一幹一支線等 6 處圳路土地設置太陽光電發電設備計畫","vendor":"玖基企業股份有限公司","date":"112/11/24","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-獅子頭圳一幹三支線(十八份段)","capacity_mw":0.2142,"contract":"獅子頭圳一幹一支線等 6 處圳路土地設置太陽光電發電設備計畫","vendor":"玖基企業股份有限公司","date":"112/11/24","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-大坑排水","capacity_mw":0.5,"contract":"獅子頭圳一幹一支線等 6 處圳路土地設置太陽光電發電設備計畫","vendor":"玖基企業股份有限公司","date":"112/11/24","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-龍肚排水","capacity_mw":0.9554,"contract":"獅子頭圳一幹一支線等 6 處圳路土地設置太陽光電發電設備計畫","vendor":"玖基企業股份有限公司","date":"112/11/24","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-龍東二輪中排","capacity_mw":0.144,"contract":"獅子頭圳一幹一支線等 6 處圳路土地設置太陽光電發電設備計畫","vendor":"玖基企業股份有限公司","date":"112/11/24","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-獅子頭圳二幹線一支線(金瓜寮段)","capacity_mw":0.9996,"contract":"獅子頭圳二幹線等2處圳路土地設置太陽光電發電設備計畫","vendor":"頂晶科技股份有限公司","date":"112/10/31","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-獅子頭圳二幹線一支線(龍中段)","capacity_mw":0.3995,"contract":"獅子頭圳二幹線等2處圳路土地設置太陽光電發電設備計畫","vendor":"頂晶科技股份有限公司","date":"112/10/31","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-獅子頭圳二幹線(旗尾段)","capacity_mw":1.1081,"contract":"獅子頭圳二幹線等2處圳路土地設置太陽光電發電設備計畫","vendor":"頂晶科技股份有限公司","date":"112/10/31","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-獅子頭圳二幹線(美濃段)","capacity_mw":0.4995,"contract":"獅子頭圳二幹線等2處圳路土地設置太陽光電發電設備計畫","vendor":"頂晶科技股份有限公司","date":"112/10/31","reason":"民眾反對陳情","handling":"已取消不計算"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-賓朗排水","capacity_mw":0.78,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"契約到期解約","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南圳知本農場支線","capacity_mw":1.86,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"契約到期解約","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-豐源圳幹線","capacity_mw":0.95,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳幹線(班鳩段)","capacity_mw":2.47,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳幹線(泰安段)","capacity_mw":1.45,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳幹線(利卡夢段)","capacity_mw":0.51,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳幹線(新田新園段)","capacity_mw":0.32,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南圳幹線(上岩灣段)","capacity_mw":2.5,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南圳幹線(南清段)","capacity_mw":1.91,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南圳幹線(豐富段)","capacity_mw":2.14,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南圳幹線(豐川段)","capacity_mw":2.9,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳導水路","capacity_mw":2.0,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(瑞豐段)","capacity_mw":0.42,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳中排7","capacity_mw":0.15,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳第8排水","capacity_mw":0.15,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳1支線","capacity_mw":1.88,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳2支線","capacity_mw":0.79,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(西莊段)","capacity_mw":0.38,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(隆興段)","capacity_mw":0.35,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(月野段)","capacity_mw":0.12,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(月美段)","capacity_mw":0.45,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(瑞豐段2)","capacity_mw":0.72,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳4支線","capacity_mw":1.23,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-康樂中排2、康樂中排3、康樂大排","capacity_mw":2.19,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"埤塘","mgmt":"臺東","name":"埤塘-臺東管理處-馬背調整池","capacity_mw":1.05,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-重慶排水","capacity_mw":0.47,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-卑南上圳幹線(利泰段)","capacity_mw":1.78,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"臺東縣","type":"圳路","mgmt":"臺東","name":"圳路-臺東管理處-關山圳幹線(北庄段)","capacity_mw":5.58,"contract":"卑南圳等圳路埤塘太陽光電發電系統計畫","vendor":"頂晶科技股份有限公司","date":"112/11/06","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"全案解約","county":"苗栗縣","type":"圳路","mgmt":"苗栗","name":"圳路-苗栗管理處-後龍圳幹線","capacity_mw":0.0999,"contract":"後龍圳幹線等2處圳路土地設置太陽光電發電設備計畫","vendor":"日煬綠能科技股份有限公司","date":"112/12/19","reason":"台電電桿占用土地","handling":"改列規劃，待處理完問題再重新招商"},{"year":112,"subcategory":"全案解約","county":"苗栗縣","type":"圳路","mgmt":"苗栗","name":"圳路-苗栗管理處-水尾大排","capacity_mw":0.461,"contract":"後龍圳幹線等2處圳路土地設置太陽光電發電設備計畫","vendor":"日煬綠能科技股份有限公司","date":"112/12/19","reason":"欲新增契約外地號未允許","handling":"改列規劃，待處理完問題再重新招商"},{"year":112,"subcategory":"全案解約","county":"苗栗縣","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-新復溝","capacity_mw":3.08,"contract":"新復溝太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"112/12/31","reason":"民眾反對陳情、契約到期","handling":"改列113-114年規劃待，待討論"},{"year":112,"subcategory":"案場撤案","county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-北投新圳幹線","capacity_mw":0.987,"contract":"北投新圳幹線等2圳太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"","reason":"待圳路改善，廠商撤案","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"案場撤案","county":"彰化縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-自作農圳","capacity_mw":1.78,"contract":"北投新圳幹線等2圳太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"","reason":"待圳路改善，廠商撤案","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"案場撤案","county":"南投縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-茄荖圳幹線-茄荖媽助圳","capacity_mw":0.55,"contract":"北投新圳幹線等2圳太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"","reason":"待圳路改善，廠商撤案","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"案場撤案","county":"彰化縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-柳枝腳圳北分線","capacity_mw":0.06,"contract":"北投新圳幹線等2圳太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"案場撤案","county":"彰化縣","type":"圳路","mgmt":"南投","name":"圳路-南投管理處-后溪支圳","capacity_mw":0.532,"contract":"北投新圳幹線等2圳太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"","reason":"縣府不同意土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-下寮溝","capacity_mw":1.7931,"contract":"崁頂鄉頂和段362地號等62筆水利用地設置太陽能發電系統計畫","vendor":"開泰股份有限公司","date":"","reason":"無饋線","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-石頭埤","capacity_mw":2.0982,"contract":"崁頂鄉頂和段362地號等62筆水利用地設置太陽能發電系統計畫","vendor":"開泰股份有限公司","date":"","reason":"圳路老舊待改善","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-大陂圳幹線","capacity_mw":1.8179,"contract":"崁頂鄉頂和段362地號等62筆水利用地設置太陽能發電系統計畫","vendor":"開泰股份有限公司","date":"","reason":"圳路老舊待改善","handling":"刪除部分土地後併入新案待重招商"},{"year":112,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-大陂圳1支線(三隆段449等)","capacity_mw":0.2019,"contract":"崁頂鄉頂和段362地號等62筆水利用地設置太陽能發電系統計畫","vendor":"開泰股份有限公司","date":"","reason":"圳路老舊待改善、無饋線","handling":"改列113-114年規劃待重新招商"},{"year":112,"subcategory":"施工中下修","county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-八堡一圳(取消區段)","capacity_mw":0.4641,"contract":"八堡一圳幹線太陽能發電系統計畫","vendor":"中租迪和股份有限公司","date":"","reason":"原規劃1-5小區施作，其中2、3小區因地方陳抗及交通安全疑慮，廠商放棄開發","handling":"剩餘1,4,5小區繼續執行(目前因地方反對聲大，停工中)"},{"year":112,"subcategory":"施工中下修","county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-西溝(取消區段)","capacity_mw":0.4995,"contract":"西溝支線太陽能發電系統計畫","vendor":"中租迪和股份有限公司","date":"","reason":"原規劃1-2小區施作，其中1小區為優良農建及樹穴區，廠商放棄開發","handling":"剩餘2小區繼續執行(目前因地方反對聲大，待施工)"},{"year":112,"subcategory":"施工中下修","county":"桃園市","type":"圳路","mgmt":"石門","name":"圳路-石門管理處-石門大圳-繞嶺支渠(取消區段)","capacity_mw":0.1317,"contract":"石門大圳繞嶺支渠再生能源發電設施(太陽光電)使用計畫","vendor":"聚恆科技股份有限公司","date":"","reason":"原規劃1-4小區施作，其中3小區因里長居民有不同意見，廠商評估後決議撤案","handling":"剩餘1,2,4小區繼續執行(目前已完工)"},{"year":113,"subcategory":"全案解約","county":"新竹縣","type":"圳路","mgmt":"新竹","name":"圳路-新竹管理處-枋寮圳","capacity_mw":0.2676,"contract":"新埔枋寮圳太陽能光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"113/2/5","reason":"地方政府暫不同意開放設置","handling":"已取消不計算"},{"year":113,"subcategory":"全案解約","county":"彰化縣","type":"圳路","mgmt":"彰化","name":"圳路-彰化管理處-頭汴圳、新圳及南分圳","capacity_mw":5.5,"contract":"頭汴圳幹線等三線太陽光電發電系統計畫","vendor":"昱鼎能源科技開發股份有限公司","date":"113/1/11","reason":"廠商請求解約","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"全案解約","county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-月眉圳幹線(上游段)","capacity_mw":0.3062,"contract":"月眉圳幹線等太陽光電發電系統計畫","vendor":"合伍光電股份有限公司","date":"113/7/8","reason":"民眾陳抗，簽訂終止協議書","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"全案解約","county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-月眉六支排水","capacity_mw":0.961,"contract":"月眉圳幹線等太陽光電發電系統計畫","vendor":"合伍光電股份有限公司","date":"113/7/8","reason":"民眾陳抗，簽訂終止協議書","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"全案解約","county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-月眉圳幹線(下游段)","capacity_mw":0.2957,"contract":"月眉圳幹線等太陽光電發電系統計畫","vendor":"合伍光電股份有限公司","date":"113/7/8","reason":"民眾陳抗，簽訂終止協議書","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"全案解約","county":"宜蘭縣","type":"圳路","mgmt":"宜蘭","name":"圳路-宜蘭管理處-三星排水人和排水","capacity_mw":0.9368,"contract":"月眉圳幹線等太陽光電發電系統計畫","vendor":"合伍光電股份有限公司","date":"113/7/8","reason":"民眾陳抗，簽訂終止協議書","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-大寮圳導水幹線","capacity_mw":0.414,"contract":"大寮圳導水幹線等3處圳路土地設置太陽光電發電設備計畫","vendor":"頂晶科技股份有限公司","date":"113/9/9","reason":"土地容許無法取得","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-大寮圳一幹線","capacity_mw":0.27,"contract":"大寮圳導水幹線等3處圳路土地設置太陽光電發電設備計畫","vendor":"頂晶科技股份有限公司","date":"113/9/9","reason":"土地容許無法取得","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"全案解約","county":"高雄市","type":"圳路","mgmt":"高雄","name":"圳路-高雄管理處-大寮圳二幹線","capacity_mw":0.8347,"contract":"大寮圳導水幹線等3處圳路土地設置太陽光電發電設備計畫","vendor":"頂晶科技股份有限公司","date":"113/9/9","reason":"土地容許無法取得","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"全案解約","county":"臺中市","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-后里圳幹線","capacity_mw":3.1724,"contract":"台中管理處后里圳幹線太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"113/12/12","reason":"無法核發地面型光電非都市土地許可使用","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-大陂圳四支線","capacity_mw":0.4989,"contract":"廣安圳導水路屏東市中柳段442地號等18筆土地太陽光電發電系統計畫","vendor":"宇泰國際開發工程有限公司","date":"113/12/21","reason":"民眾陳抗，簽訂終止協議書","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-里港圳幹線","capacity_mw":3.1232,"contract":"廣安圳導水路屏東市中柳段442地號等18筆土地太陽光電發電系統計畫","vendor":"宇泰國際開發工程有限公司","date":"113/12/21","reason":"民眾陳抗，簽訂終止協議書","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳第三支線中排四","capacity_mw":1.2964,"contract":"廣安圳導水路屏東市中柳段442地號等18筆土地太陽光電發電系統計畫","vendor":"宇泰國際開發工程有限公司","date":"113/12/21","reason":"民眾陳抗，簽訂終止協議書","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-萬丹圳第三支線","capacity_mw":0.8242,"contract":"廣安圳導水路屏東市中柳段442地號等18筆土地太陽光電發電系統計畫","vendor":"宇泰國際開發工程有限公司","date":"113/12/21","reason":"民眾陳抗，簽訂終止協議書","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-大湖圳大排(含濫圳導水路)","capacity_mw":1.9448,"contract":"大湖圳等圳路太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"113/12/14","reason":"民眾陳抗，簽訂終止協議書","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-9-3-1三快排水支線","capacity_mw":0.3808,"contract":"大湖圳等圳路太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"113/12/14","reason":"民眾陳抗，簽訂終止協議書","handling":"改列113-114年規劃待重新招商"},{"year":113,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-北勢仔埤幹線","capacity_mw":0.816,"contract":"大湖圳等圳路太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"113/12/14","reason":"民眾陳抗，簽訂終止協議書","handling":"改列113-114年規劃待重新招商"},{"year":114,"subcategory":"全案解約","county":"南投縣","type":"圳路","mgmt":"南投","name":"頂茄荖大排第1中排","capacity_mw":0.7138,"contract":"頂茄荖大排第一中排等3圳太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"114/7/28","reason":"土地容許無法取得","handling":"改列114年規劃待重新招商"},{"year":114,"subcategory":"全案解約","county":"彰化縣","type":"圳路","mgmt":"南投","name":"新圳","capacity_mw":0.73,"contract":"頂茄荖大排第一中排等3圳太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"114/7/28","reason":"土地容許無法取得","handling":"改列114年規劃待重新招商"},{"year":114,"subcategory":"全案解約","county":"臺中市","type":"圳路","mgmt":"南投","name":"同安北圳","capacity_mw":0.3142,"contract":"頂茄荖大排第一中排等3圳太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"114/7/28","reason":"土地容許無法取得","handling":"改列114年規劃待重新招商"},{"year":114,"subcategory":"全案解約","county":"臺中市","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-六股排水","capacity_mw":3.05,"contract":"六股排水太陽光電發電系統計畫","vendor":"耀盈能源科技股份有限公司","date":"114/6/30","reason":"土地容許無法取得","handling":"改列114年規劃待重新招商"},{"year":114,"subcategory":"全案解約","county":"嘉義縣","type":"圳路","mgmt":"嘉南","name":"圳路-嘉南管理處-朴子支線等12線","capacity_mw":13.3039,"contract":"朴子支線等12線圳路(地面型)太陽光電發電系統計畫","vendor":"崑鼎綠能環保(股)公司","date":"114/12/12","reason":"土地容許無法取得","handling":"改列114年規劃待重新招商"},{"year":114,"subcategory":"全案解約","county":"臺中市","type":"圳路","mgmt":"臺中","name":"圳路-臺中管理處-大肚圳-(溪州段C區)","capacity_mw":0.2703,"contract":"大肚圳太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"114/12/31","reason":"土地容許無法取得","handling":"改列114年規劃待重新招商"},{"year":114,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-縣官埤幹線","capacity_mw":0.7333,"contract":"東圳第一中排等圳路太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"","reason":"因施設困難且鄰近無台電饋線、台電配電場所位置不易尋找故辦理案場撤銷。","handling":"改列113-114年規劃待重新招商"},{"year":114,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-頓物埤中排二","capacity_mw":0.7659,"contract":"東圳第一中排等圳路太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"","reason":"因施設困難且鄰近無台電饋線、台電配電場所位置不易尋找故辦理案場撤銷。","handling":"改列113-114年規劃待重新招商"},{"year":114,"subcategory":"案場撤案","county":"屏東縣","type":"圳路","mgmt":"屏東","name":"圳路-屏東管理處-林文埤幹線","capacity_mw":1.3536,"contract":"東圳第一中排等圳路太陽光電發電系統計畫","vendor":"中租迪和股份有限公司","date":"","reason":"因施設困難且鄰近無台電饋線、台電配電場所位置不易尋找故辦理案場撤銷。","handling":"改列113-114年規劃待重新招商"}]},"hydro":{"sites":[{"mgmt":"臺中","county":"臺中市","township":"后里區","contract":"-","name":"后里圳低落差示範電廠","capacity_kw":110.0,"year":"75年","operation":"營運中","vendor":"台電公司大甲溪電廠操作管理","note":"","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"雲林","county":"雲林縣","township":"林內鄉","contract":"雲林農田水利會八卦池下游南岸聯絡渠道三座水力發電廠","name":"八卦池下游南岸聯絡渠道NO.18(5k+680)小水力發電廠","capacity_kw":250.0,"year":"108年","operation":"營運中","vendor":"華芯電子股份有限公司\n(雲水水力發電廠(一))","note":"","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"雲林","county":"雲林縣","township":"林內鄉","contract":"雲林農田水利會八卦池下游南岸聯絡渠道三座水力發電廠","name":"八卦池下游南岸聯絡渠道NO.15(4k+796)小水力發電廠","capacity_kw":250.0,"year":"110年","operation":"營運中","vendor":"華芯電子股份有限公司\n(雲水水力發電廠(二))","note":"","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"嘉南","county":"臺南市","township":"官田區","contract":"-","name":"烏山頭電廠","capacity_kw":8750.0,"year":"91年","operation":"營運中","vendor":"嘉南實業股份公司","note":"","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"嘉南","county":"臺南市","township":"東山區","contract":"-","name":"西口電廠","capacity_kw":11520.0,"year":"96年","operation":"營運中","vendor":"嘉南實業股份公司","note":"","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"嘉南","county":"臺南市","township":"官田區","contract":"-","name":"八田電廠","capacity_kw":2196.0,"year":"105年","operation":"營運中","vendor":"嘉南實業股份公司","note":"","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"高雄","county":"高雄市","township":"岡山區","contract":"-","name":"阿公店水庫取出水工暨復興渠(0k+000- 0k+358)","capacity_kw":30.0,"year":"111年","operation":"營運中","vendor":"本案場由水利署南區水資源分署招標\n(土地為南區水資源分署所有)","note":"","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"花蓮","county":"花蓮縣","township":"玉里鎮","contract":"-","name":"太平渠幹線松浦小水力發電廠","capacity_kw":80.0,"year":"108年","operation":"(機組調整中，另列項次(D)12)","vendor":"經一綠能股份有限公司(原同達綠能股份有限公司)","note":"松浦電廠","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":true,"anomaly_type":"機組調整中","anomaly_level":"yellow"},{"mgmt":"臺東","county":"臺東縣","township":"卑南鄉","contract":"卑南小水力發電廠","name":"卑南小水力發電廠","capacity_kw":1980.0,"year":"93年","operation":"營運中","vendor":"聚電企業開發公司","note":"","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"臺東","county":"臺東縣","township":"海端鄉","contract":"關山圳水力發電廠","name":"關山圳水力發電廠","capacity_kw":1000.0,"year":"108年","operation":"營運中","vendor":"經一綠能股份有限公司(原捷祥股份有限公司)","note":"","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"臺中","county":"臺中市","township":"后里區","contract":"后里圳后里區后安段0044-0000地號小水力發電設備建置","name":"后里圳后里區后安段0044-0000地號小水力發電設備建置","capacity_kw":60.0,"year":"114年","operation":"完工併網-\n114/12/03向管理處重新申請竣工函，以利重新申請設備登記(恆水字第11412030010號)，管理處114/12/26重新核發竣工函(農水臺中字第1148450327號)。\n2.申請設備登記中。","vendor":"恆水創電股份有限公司","note":"","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"花蓮","county":"花蓮縣","township":"壽豐鄉","contract":"-","name":"溪口排水小水力發電設備","capacity_kw":3.0,"year":"114年","operation":"完工測試\n114.4.21竣工","vendor":"花蓮管理處工務組(友上營造有限公司)","note":"關山圳沉砂池小水力電廠","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"雲林","county":"雲林縣","township":"林內鄉、\n莿桐鄉","contract":"鹿場課圳第一、二、三號跌水工水力發電案","name":"鹿場課圳第一、二、三號跌水工小水力發電廠(台塑)","capacity_kw":475.0,"year":"114年","operation":"完工併網-\n已完成併聯(雲林字第1148066884號函及雲林字第1148066903號函)，已取得設備登記","vendor":"台塑石化股份有限公司","note":"","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"臺中","county":"臺中市","township":"豐原區","contract":"南幹線豐原區師範段 1286 地號等小水力發電設備建置","name":"南幹線豐原區師範段 1286 地號等小水力發電設備建置","capacity_kw":560.0,"year":"114年","operation":"完工併網-\n1.114/12/17 完工併網(台中字第1148162986號)。\n2.申請設備登記中。","vendor":"森崴能源股份有限公司","note":"取得台電併聯審查700kW","stage":"已完工/已完成","substage":"(A)小水力發電廠","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"石門","county":"桃園市","township":"平鎮區","contract":"-","name":"中壢支渠(北商段572地號)微水力發電站","capacity_kw":5.0,"year":"112年","operation":"機組已拆除","vendor":"水律能源股份有限公司","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組已拆除","anomaly_level":"red"},{"mgmt":"新竹","county":"新竹縣","township":"竹東鎮","contract":"-","name":"竹東圳(1K+380)微水力發電站","capacity_kw":5.0,"year":"108年","operation":"機組已拆除","vendor":"富盛能源股份有限公司","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組已拆除","anomaly_level":"red"},{"mgmt":"臺中","county":"臺中市","township":"新社區","contract":"-","name":"白冷圳水底寮支線小水力發電試驗場所","capacity_kw":1.0,"year":"111年","operation":"(機組用張茂崑重新申請，另列項次 ( E )10)","vendor":"阿丹馬克股份有限公司","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"彰化","county":"彰化縣","township":"溪州鄉","contract":"-","name":"莿仔埤圳微水力發電機組","capacity_kw":10.0,"year":"111年","operation":"機組已拆除","vendor":"崑山科大綠能科技研究中心","note":"測試案場","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組已拆除","anomaly_level":"red"},{"mgmt":"南投","county":"彰化縣","township":"芬園鄉","contract":"-","name":"新茄荖圳微水力發電機組","capacity_kw":20.0,"year":"113年","operation":"機組已拆除","vendor":"源灃電力工業股份有限公司","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組已拆除","anomaly_level":"red"},{"mgmt":"南投","county":"南投縣","township":"草屯鎮","contract":"-","name":"新茄荖圳","capacity_kw":50.0,"year":"113年","operation":"機組已拆除","vendor":"源灃電力工業股份有限公司","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組已拆除","anomaly_level":"red"},{"mgmt":"嘉南","county":"臺南市","township":"官田區","contract":"-","name":"嘉南大圳南幹線(3K+700)","capacity_kw":1.0,"year":"111年","operation":"機組已拆除","vendor":"成功大學水工試驗所","note":"測試案場","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組已拆除","anomaly_level":"red"},{"mgmt":"高雄","county":"高雄市","township":"杉林區","contract":"-","name":"旗山圳一幹線(0K+300)微水力發電站","capacity_kw":5.0,"year":"107年","operation":"機組待拆除","vendor":"利達豐能源科技有限公司\n(公司原名稱為\"天一能源科技有限公司\")","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組待拆除","anomaly_level":"red"},{"mgmt":"花蓮","county":"花蓮縣","township":"吉安鄉","contract":"-","name":"吉安圳2幹線(0K+775)微水力發電站","capacity_kw":5.0,"year":"108年","operation":"機組已拆除","vendor":"振宜科技有限公司","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組已拆除","anomaly_level":"red"},{"mgmt":"花蓮","county":"花蓮縣","township":"吉安鄉","contract":"-","name":"吉安圳1幹線2支線2分線南華分線微水力發電站","capacity_kw":1.5,"year":"109年","operation":"(運轉測試中，另列項次 ( E )7)","vendor":"臺電東部發電廠協助福慧農場設置","note":"-","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"花蓮","county":"花蓮縣","township":"吉安鄉","contract":"-","name":"吉安圳1幹線2支線1K+471微水力發電站","capacity_kw":3.7,"year":"112年","operation":"運轉測試中，另列項次 ( E )8)","vendor":"廣太綠能股份有限公司","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"花蓮","county":"花蓮縣","township":"玉里鎮","contract":"-","name":"玉東圳4支線","capacity_kw":0.75,"year":"113年","operation":"機組已拆除","vendor":"農業部農業試驗所","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組已拆除","anomaly_level":"red"},{"mgmt":"臺中","county":"臺中市","township":"新社區","contract":"-","name":"白冷圳水底寮支線小水力發電試驗場所","capacity_kw":1.0,"year":"114年","operation":"機組待拆除","vendor":"阿丹馬克川流綠電股份有限公司","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組待拆除","anomaly_level":"red"},{"mgmt":"花蓮","county":"花蓮縣","township":"吉安鄉","contract":"-","name":"吉安圳1幹線2支線","capacity_kw":0.03,"year":"113年","operation":"114/1/16\n(機組調整中，另列項次 ( E )4)","vendor":"國立臺灣大學","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組調整中","anomaly_level":"yellow"},{"mgmt":"南投","county":"台中市","township":"霧峰區","contract":"-","name":"阿罩霧第一圳導水路幹線(明玉)","capacity_kw":50.0,"year":"114年","operation":"機組已拆除","vendor":"明玉綠能股份有限公司","note":"","stage":"已完工/已完成","substage":"(B)測試案場-已完成","is_anomaly":true,"anomaly_type":"機組已拆除","anomaly_level":"red"},{"mgmt":"雲林","county":"雲林縣","township":"林內鄉","contract":"-","name":"林內圳(鄰近斗六堰)(0k+200)微水力發電站1","capacity_kw":10.0,"year":"107年","operation":"完成測試","vendor":"本署專案計畫示範案場","note":"序列式案場","stage":"已完工/已完成","substage":"(C)專案示範案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"雲林","county":"雲林縣","township":"林內鄉","contract":"-","name":"林內圳(鄰近斗六堰)(0k+200)微水力發電站2","capacity_kw":10.0,"year":"109年","operation":"完成測試","vendor":"本署專案計畫示範案場","note":"序列式案場","stage":"已完工/已完成","substage":"(C)專案示範案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"雲林","county":"雲林縣","township":"林內鄉","contract":"-","name":"南岸聯絡道(水利會文物館園區內)微水力發電站","capacity_kw":10.0,"year":"108年","operation":"完成測試","vendor":"本署專案計畫示範案場","note":"測試案場","stage":"已完工/已完成","substage":"(C)專案示範案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"桃園","county":"桃園市","township":"龍潭區","contract":"桃園大圳導水路(2號水橋前上游段)小水力發電設備建置案","name":"桃園大圳導水路(2號水橋前上游段)小水力發電設備建置案","capacity_kw":254.3,"year":"117年","operation":"完成招標-\n營運計劃書修正中","vendor":"霢霂能源開發股份有限公司","note":"","stage":"推動中","substage":"(D)招標案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"苗栗","county":"苗栗縣","township":"公館鄉","contract":"穿龍圳北幹線小水力發電建置案","name":"穿龍圳北幹線小水力發電建置案","capacity_kw":30.0,"year":"115年","operation":"完成招標-\n114年12月23日取得同意備案(府商用字第1140250574號)。","vendor":"嘉德技術開發股份有限公司","note":"","stage":"推動中","substage":"(D)招標案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"臺中","county":"臺中市","township":"后里區","contract":"后里圳后里區后安段0044-0000地號小水力發電設備建置","name":"后里圳后里區后安段0044-0000地號小水力發電設備建置","capacity_kw":60.0,"year":"114年","operation":"114.02.14\n(完成台電併聯，另列項次 ( A )10)","vendor":"恆水創電股份有限公司","note":"","stage":"推動中","substage":"(D)招標案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"臺中","county":"臺中市","township":"豐原區","contract":"南幹線豐原區師範段 1286 地號等小水力發電設備建置","name":"南幹線豐原區師範段 1286 地號等小水力發電設備建置","capacity_kw":560.0,"year":"114年","operation":"完工併網-\n114/12/17 完工併網(台中字第1148162986號)。(完成台電併聯，另列項次 ( A )10)","vendor":"森崴能源股份有限公司","note":"取得台電併聯審查700kW","stage":"推動中","substage":"(D)招標案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"彰化","county":"彰化縣","township":"溪州鄉","contract":"莿仔埤圳幹線溪州鄉大庄段小水力發電設備建置案","name":"莿仔埤圳幹線溪州鄉大庄段小水力發電設備建置案","capacity_kw":180.0,"year":"115年","operation":"完成招標-\n施工中\n114年7月28日同意廠商併聯掛錶日展延至115年1月26日(農水彰化字第1148536112號)","vendor":"恆水創電股份有限公司","note":"-","stage":"推動中","substage":"(D)招標案場","is_anomaly":true,"anomaly_type":"展延","anomaly_level":"yellow"},{"mgmt":"南投","county":"南投縣","township":"埔里鎮","contract":"能高大圳東幹線 0k+000~0k+120 小水力發電設備建置","name":"能高大圳東幹線 0k+000~0k+120 小水力發電設備建置","capacity_kw":490.0,"year":"115年","operation":"完成招標-\n施工中\n管理處同意展延至114年11月23日(114年5月13日農水南投字第1148490786號函)","vendor":"霖全能源股份有限公司","note":"-","stage":"推動中","substage":"(D)招標案場","is_anomaly":true,"anomaly_type":"展延","anomaly_level":"yellow"},{"mgmt":"雲林","county":"雲林縣","township":"莿桐鄉","contract":"濁幹線雲林縣莿桐鄉新庄子段小水力發電設備建置案","name":"濁幹線(3K+100)莿桐鄉新庄子段小水力發電廠(經一)","capacity_kw":800.0,"year":"115年","operation":"完成招標-\n施工中","vendor":"經一綠能股份有限公司","note":"濁幹線堤岸加高工程完成","stage":"推動中","substage":"(D)招標案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"雲林","county":"雲林縣","township":"莿桐鄉","contract":"鹿場課圳七號跌水工水力發電案","name":"鹿場課圳七號跌水工小水力發電廠(恆水)","capacity_kw":130.0,"year":"115年","operation":"完成招標-\n施工中","vendor":"恆水創電股份有限公司","note":"原100kW，提升至130kW","stage":"推動中","substage":"(D)招標案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"雲林","county":"雲林縣","township":"林內鄉、\n莿桐鄉","contract":"鹿場課圳第一、二、三號跌水工水力發電案","name":"鹿場課圳第一、二、三號跌水工小水力發電廠(台塑)","capacity_kw":475.0,"year":"114年","operation":"114.05.23\n(完成台電併聯，另列項次 ( A )12)","vendor":"台塑石化股份有限公司","note":"廠商規劃設置2組機組(318+157=475kW)","stage":"推動中","substage":"(D)招標案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"高雄","county":"高雄市","township":"美濃區","contract":"獅子頭圳導水路小水利發電設備建置案","name":"獅子頭圳導水路小水利發電設備建置案","capacity_kw":200.0,"year":"-","operation":"籌辦招標-\n公開招標暫緩辦理","vendor":"-","note":"1.廠商評估200kW\n2.準備招商作業。","stage":"推動中","substage":"(D)招標案場","is_anomaly":true,"anomaly_type":"暫緩辦理","anomaly_level":"red"},{"mgmt":"宜蘭","county":"宜蘭縣","township":"冬山鄉","contract":"萬長春圳小水力發電設備建置","name":"萬長春圳小水力發電","capacity_kw":252.0,"year":"-","operation":"已終止契約-\n114年9月30日同意終止契約(農水宜蘭字第1148124893號)\n114年12月11日合意終止契約公證","vendor":"續律能源股份有限公司","note":"","stage":"推動中","substage":"(D)招標案場","is_anomaly":true,"anomaly_type":"已終止契約","anomaly_level":"red"},{"mgmt":"花蓮","county":"花蓮縣","township":"玉里鎮","contract":"太平渠幹線松浦小水力發電廠","name":"太平渠幹線松浦小水力發電廠","capacity_kw":140.0,"year":"115年","operation":"完成招標-\n1.土地容許申請中\n2.取得花蓮縣政府再生能源發電設備同意備案(府觀工字第1140184876號)","vendor":"經一綠能股份有限公司","note":"原項次(一)6-更換機組","stage":"推動中","substage":"(D)招標案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"花蓮","county":"花蓮縣","township":"瑞穗鄉","contract":"興泉圳微水力發電設備建置案","name":"興泉圳微水力發電設備建置案","capacity_kw":200.0,"year":"117年","operation":"完成招標-\n召開部落會議及地方說明會，廠商籌辦中\n管理處同意展延同意備案許可期限，自114年12月8日起至115年12月7日止。","vendor":"霖全能源股份有限公司","note":"","stage":"推動中","substage":"(D)招標案場","is_anomaly":true,"anomaly_type":"展延","anomaly_level":"yellow"},{"mgmt":"臺東","county":"臺東縣","township":"卑南鄉","contract":"-","name":"卑南上圳小水力發電設備","capacity_kw":250.0,"year":"-","operation":"已撤案\n114.5.9同意廠商終止契約(農水臺東字第1148821778號)","vendor":"源林工程股份有限公司","note":"","stage":"推動中","substage":"(D)招標案場","is_anomaly":true,"anomaly_type":"已撤案","anomaly_level":"red"},{"mgmt":"臺東","county":"臺東縣","township":"關山鎮","contract":"關山圳(北庄段)小水力發電設備建置案","name":"關山圳(北庄段)小水力發電設備建置案","capacity_kw":600.0,"year":"116年","operation":"完成招標-\n申請台電併聯審查中","vendor":"恆水創電股份有限公司\n(本案另一投標廠商-華立企業股份有限公司訴願已撤回)，113/04/17公證簽約。","note":"","stage":"推動中","substage":"(D)招標案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"臺東","county":"臺東縣","township":"關山鎮","contract":"關山圳(西莊段)小水力發電設備建置案","name":"關山圳(西莊段)小水力發電設備建置案","capacity_kw":415.0,"year":"116年","operation":"完成招標-\n申請台電併聯審查中","vendor":"恆水創電股份有限公司\n(本案另一投標廠商-華立企業股份有限公司訴願已撤回)，113/04/17公證簽約。","note":"","stage":"推動中","substage":"(D)招標案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"花蓮","county":"花蓮縣","township":"壽豐鄉","contract":"-","name":"溪口排水","capacity_kw":3.0,"year":"114年","operation":"114.4.21(竣工，另列項次 ( A )11)","vendor":"","note":"","stage":"推動中","substage":"(D)招標案場","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"臺中","county":"臺中市","township":"新社區","contract":"-","name":"白冷圳水底寮支線小水力發電試驗場所","capacity_kw":1.0,"year":"114年","operation":"(機組用張茂崑重新申請，另列項次 ( E )10)","vendor":"阿丹馬克股份有限公司","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"南投","county":"台中市","township":"霧峰區","contract":"-","name":"阿罩霧第一圳導水路幹線(迪暘)","capacity_kw":20.0,"year":"114年","operation":"機組調整中(測試期間：114/07/17~115/01/16)","vendor":"迪暘有限公司","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":true,"anomaly_type":"機組調整中","anomaly_level":"yellow"},{"mgmt":"南投","county":"台中市","township":"霧峰區","contract":"-","name":"阿罩霧第一圳導水路幹線(明玉)","capacity_kw":50.0,"year":"114年","operation":"完成測試-管理處函發查驗完成公文(農水投字第1148506457號)\n(機組已拆除，另列項次 ( B )11)","vendor":"明玉綠能股份有限公司","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":true,"anomaly_type":"機組已拆除","anomaly_level":"red"},{"mgmt":"嘉南","county":"嘉義縣","township":"竹崎鄉","contract":"-","name":"中興圳幹線跌水工","capacity_kw":0.5,"year":"114年","operation":"運轉測試中\n(測試期間：114/12/05~115/01/29)","vendor":"山立能源科技有限公司","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"花蓮","county":"花蓮縣","township":"吉安鄉","contract":"-","name":"吉安圳1幹線2支線(初英山)","capacity_kw":0.1,"year":"114年","operation":"運轉測試中\n(測試期間：114/05/09~114/11/08)\n展延申請中，預計展延至115/11/08(花初字第114121501號)","vendor":"初英山文化產業交流協會","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":true,"anomaly_type":"展延","anomaly_level":"yellow"},{"mgmt":"花蓮","county":"花蓮縣","township":"吉安鄉","contract":"-","name":"吉安圳1幹線2支線(臺大)","capacity_kw":0.03,"year":"114年","operation":"運轉測試中(測試期間：114/01/15~114/12/31)","vendor":"國立臺灣大學","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"花蓮","county":"花蓮縣","township":"吉安鄉","contract":"-","name":"吉安圳1幹線2支線2分線南華分線微水力發電站","capacity_kw":1.5,"year":"109年","operation":"運轉測試中\n(測試期間：114/01/01~114/12/31)","vendor":"臺電東部發電廠協助福慧農場設置","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"花蓮","county":"花蓮縣","township":"吉安鄉","contract":"-","name":"吉安圳1幹線2支線1K+471微水力發電站","capacity_kw":3.7,"year":"112年","operation":"運轉測試中\n(測試期間：114/09/01~115/08/31)","vendor":"廣太綠能股份有限公司","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"花蓮","county":"花蓮縣","township":"吉安鄉","contract":"-","name":"吉安圳2幹線","capacity_kw":3.0,"year":"114年","operation":"申請中","vendor":"張恭合","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"臺中","county":"臺中市","township":"","contract":"-","name":"葫蘆墩圳(暫定)","capacity_kw":0,"year":"","operation":"114/10/07管理處尚未收到申請相關文件。","vendor":"","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"臺中","county":"臺中市","township":"新社區","contract":"-","name":"白冷圳水底寮支線小水力發電試驗場所","capacity_kw":1.0,"year":"111年","operation":"申請中(同意測試期間：114/09/01~116/08/31，農水中字第1148458472號)","vendor":"張茂崑(原阿丹馬克股份有限公司申請測試)","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"南投","county":"南投縣","township":"草屯鎮","contract":"-","name":"北投新圳幹線","capacity_kw":0,"year":"","operation":"申請中","vendor":"源灃電力工業股份有限公司","note":"","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"臺中","county":"臺中市","township":"后里區","contract":"-","name":"后里圳(后科段524地號)微水力發電站","capacity_kw":1.0,"year":"113年","operation":"受理申請測試-\n審核中","vendor":"阿丹馬克川流綠電股份有限公司自111年9月後未提出補正資料","note":"測試案場","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":false,"anomaly_type":"","anomaly_level":""},{"mgmt":"彰化","county":"彰化縣","township":"名間鄉","contract":"-","name":"同源圳1K+430微水力發電站","capacity_kw":2.0,"year":"113年","operation":"受理申請測試-\n安裝流量計","vendor":"農業部農業試驗所\n(1121018農試工字第1122149858號農業部農業試驗所來文因試驗延續性考量，取消「同源圳1K+430m處微水力發電測試案場」)","note":"測試案場","stage":"推動中","substage":"(E)測試案場-推動中","is_anomaly":false,"anomaly_type":"","anomaly_level":""}],"summary":{"total_cases":45,"total_capacity_kw":30581.58,"completed_cases":26,"completed_capacity_kw":27366.75,"in_progress_cases":21,"in_progress_capacity_kw":3214.83},"mgmt":[{"name":"臺中","cases":11,"capacity_kw":1355.0,"completed_cases":5,"completed_kw":732.0,"in_progress_cases":6,"in_progress_kw":623.0,"anomaly_cases":1},{"name":"雲林","cases":9,"capacity_kw":2410.0,"completed_cases":6,"completed_kw":1005.0,"in_progress_cases":3,"in_progress_kw":1405.0,"anomaly_cases":0},{"name":"嘉南","cases":5,"capacity_kw":22467.5,"completed_cases":4,"completed_kw":22467.0,"in_progress_cases":1,"in_progress_kw":0.5,"anomaly_cases":1},{"name":"高雄","cases":3,"capacity_kw":235.0,"completed_cases":2,"completed_kw":35.0,"in_progress_cases":1,"in_progress_kw":200.0,"anomaly_cases":2},{"name":"花蓮","cases":15,"capacity_kw":445.31,"completed_cases":7,"completed_kw":93.98,"in_progress_cases":8,"in_progress_kw":351.33,"anomaly_cases":6},{"name":"臺東","cases":5,"capacity_kw":4245.0,"completed_cases":2,"completed_kw":2980.0,"in_progress_cases":3,"in_progress_kw":1265.0,"anomaly_cases":1},{"name":"石門","cases":1,"capacity_kw":5.0,"completed_cases":1,"completed_kw":5.0,"in_progress_cases":0,"in_progress_kw":0,"anomaly_cases":1},{"name":"新竹","cases":1,"capacity_kw":5.0,"completed_cases":1,"completed_kw":5.0,"in_progress_cases":0,"in_progress_kw":0,"anomaly_cases":1},{"name":"彰化","cases":3,"capacity_kw":192.0,"completed_cases":1,"completed_kw":10.0,"in_progress_cases":2,"in_progress_kw":182.0,"anomaly_cases":2},{"name":"南投","cases":7,"capacity_kw":680.0,"completed_cases":3,"completed_kw":120.0,"in_progress_cases":4,"in_progress_kw":560.0,"anomaly_cases":6},{"name":"桃園","cases":1,"capacity_kw":254.3,"completed_cases":0,"completed_kw":0,"in_progress_cases":1,"in_progress_kw":254.3,"anomaly_cases":0},{"name":"苗栗","cases":1,"capacity_kw":30.0,"completed_cases":0,"completed_kw":0,"in_progress_cases":1,"in_progress_kw":30.0,"anomaly_cases":0},{"name":"宜蘭","cases":1,"capacity_kw":252.0,"completed_cases":0,"completed_kw":0,"in_progress_cases":1,"in_progress_kw":252.0,"anomaly_cases":1}]}};
+
+// ==================== 工具 ====================
+const STAGE_COLORS = {
+  '已完工': '#059669',
+  '施工中': '#0891b2',
+  '待施工': '#0891b2',
+  '停工中': '#dc2626',
+  '行政程序中': '#6366f1',
+  '規劃推動': '#94a3b8',
+  '推動中': '#0891b2',
+  '已完工/已完成': '#059669'
+};
+
+const SUBSTAGE_COLORS = {
+  '(A)小水力發電廠': '#059669',
+  '(B)測試案場-已完成': '#0891b2',
+  '(C)專案示範案場': '#6366f1',
+  '(D)招標案場': '#8b5cf6',
+  '(E)測試案場-推動中': '#94a3b8'
+};
+
+function categorizeReason(r) {
+  if (!r) return '其他';
+  if (r.includes('民眾') || r.includes('陳抗') || r.includes('陳情')) return '民眾反對/陳抗';
+  if (r.includes('土地') || r.includes('容許') || r.includes('縣府不同意')) return '土地容許問題';
+  if (r.includes('契約')) return '契約失效';
+  if (r.includes('廠商') || r.includes('履保') || r.includes('放棄')) return '廠商主動撤案';
+  if (r.includes('施設') || r.includes('饋線') || r.includes('台電')) return '台電/施工技術';
+  return '其他';
+}
+
+function getSolarAnomalies() {
+  const arr = [];
+  DATA.solar.construction_sites.filter(s => s.stage === '停工中').forEach((s, i) => {
+    arr.push({ ...s, _level: 'red', _reason: '停工中', _key: 'c'+i });
+  });
+  DATA.solar.admin_sites.filter(s => s.progress && s.progress.includes('撤案')).forEach((s, i) => {
+    arr.push({ ...s, _level: 'red', _reason: s.progress, _key: 'a'+i });
+  });
+  return arr;
+}
+
+function getMgmtSolarSites(mgmt) {
+  return [
+    ...DATA.solar.completed_sites.filter(s => s.mgmt === mgmt).map(s => ({...s, _stage: '已完工'})),
+    ...DATA.solar.construction_sites.filter(s => s.mgmt === mgmt).map(s => ({...s, _stage: s.stage})),
+    ...DATA.solar.admin_sites.filter(s => s.mgmt === mgmt).map(s => ({...s, _stage: '行政程序中'})),
+    ...DATA.solar.planning_sites.filter(s => s.mgmt === mgmt).map(s => ({...s, _stage: '規劃推動'}))
+  ];
+}
+
+function getVendorAnalysis() {
+  const map = {};
+  DATA.solar.cancelled_sites.forEach(c => {
+    const v = c.vendor || '未填';
+    if (!map[v]) map[v] = { name: v, count: 0, mw: 0, reasons: {}, mgmts: new Set(), years: new Set(), cases: [] };
+    map[v].count += 1;
+    map[v].mw += c.capacity_mw;
+    const cat = categorizeReason(c.reason);
+    map[v].reasons[cat] = (map[v].reasons[cat] || 0) + 1;
+    map[v].mgmts.add(c.mgmt);
+    map[v].years.add(c.year);
+    map[v].cases.push(c);
+  });
+  return Object.values(map)
+    .map(v => ({ ...v, mgmts: Array.from(v.mgmts), years: Array.from(v.years).sort() }))
+    .sort((a, b) => b.mw - a.mw);
+}
+
+// ==================== 狀態 ====================
+const state = {
+  tab: 'solar',
+  solar: { mgmt: 'all', type: 'all', stage: 'all', search: '' },
+  hydro: { mgmt: 'all', substage: 'all', anomaly: 'all', search: '' },
+  cancelYear: 'all',
+  cancelExpanded: false,
+  mgmtModal: null,
+  vendorModal: null
+};
+
+function setState(patch) {
+  Object.assign(state, patch);
+  render();
+}
+
+// ==================== ICONS ====================
+const ICON = {
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
+  target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+  building: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="9" y1="22" x2="9" y2="18"/><line x1="15" y1="22" x2="15" y2="18"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/></svg>',
+  factory: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>',
+  file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  print: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
+  drop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="6 9 12 15 18 9"/></svg>',
+  store: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2v0a2 2 0 0 1-2-2V7"/><path d="M18 7v3a2 2 0 0 1-2 2v0a2 2 0 0 1-2-2V7"/><path d="M14 7v3a2 2 0 0 1-2 2v0a2 2 0 0 1-2-2V7"/><path d="M10 7v3a2 2 0 0 1-2 2v0a2 2 0 0 1-2-2V7"/><path d="M6 7v3a2 2 0 0 1-2 2v0a2 2 0 0 1-2-2V7"/></svg>'
+};
+
+// ==================== 模版函式 ====================
+function tplSectionHeader({ icon, title, subtitle, accent, sectionId, exportLabel }) {
+  return `
+    <div class="flex items-start justify-between gap-3 mb-5">
+      <div class="flex items-start gap-3 flex-1">
+        <div class="rounded-lg p-2.5 flex-shrink-0" style="background:${accent}15;color:${accent}">${icon}</div>
+        <div>
+          <h2 class="text-xl font-bold tracking-tight font-serif-tc" style="color:var(--ink)">${title}</h2>
+          ${subtitle ? `<p class="text-sm mt-0.5" style="color:var(--ink-soft)">${subtitle}</p>` : ''}
+        </div>
+      </div>
+      ${sectionId ? `<button class="icon-btn no-print" onclick="exportPNG('${sectionId}','${exportLabel || title}')">${ICON.download}下載 PNG</button>` : ''}
+    </div>`;
+}
+
+function tplKpi({ label, value, unit, sublabel, accent, danger }) {
+  const color = danger ? 'var(--alert)' : (accent || 'var(--ink)');
+  return `
+    <div class="kpi-card">
+      <div class="text-xs font-medium uppercase mb-2" style="color:var(--ink-soft);letter-spacing:0.08em">${label}</div>
+      <div class="flex items-baseline gap-1.5">
+        <span class="text-3xl font-bold tabular-nums font-serif-tc" style="color:${color}">${value}</span>
+        ${unit ? `<span class="text-sm font-medium" style="color:var(--ink-soft)">${unit}</span>` : ''}
+      </div>
+      ${sublabel ? `<p class="text-xs mt-1.5" style="color:var(--ink-muted)">${sublabel}</p>` : ''}
+    </div>`;
+}
+
+function tplBadge(label, color, bg) {
+  return `<span class="badge" style="color:${color};background:${bg || color + '15'}">${label}</span>`;
+}
+
+function tplFilterGroup(label, value, options, key) {
+  return `
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="text-xs font-medium" style="color:var(--ink-soft)">${label}</span>
+      <div class="flex items-center gap-1 flex-wrap">
+        <button class="filter-btn ${value === 'all' ? 'active' : ''}" onclick="setFilter('${key}','all')">全部</button>
+        ${options.map(o => `<button class="filter-btn ${value === o ? 'active' : ''}" onclick="setFilter('${key}','${o}')">${o}</button>`).join('')}
+      </div>
+    </div>`;
+}
+
+function tplSolarCard(s) {
+  const isAnomaly = (s.stage === '停工中') || (s.progress && s.progress.includes('撤案'));
+  const stageColor = STAGE_COLORS[s._stage] || STAGE_COLORS[s.stage] || 'var(--ink-soft)';
+  const stageName = s._stage || s.stage || s._stageGroup;
+  const typeMark = s.type === '圳路' ? '◇' : s.type === '埤塘' ? '○' : '◆';
+  return `
+    <div class="site-card ${isAnomaly ? 'anomaly-red' : ''}" onclick="openMgmtModal('${s.mgmt}')">
+      <div class="flex items-start justify-between gap-2 mb-2">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span style="color:${stageColor}">${typeMark}</span>
+          ${tplBadge(stageName, stageColor, stageColor + '15')}
+          ${isAnomaly ? tplBadge('異常', 'var(--alert)', '#fee2e2') : ''}
+        </div>
+        <span class="text-sm font-bold tabular-nums font-serif-tc flex-shrink-0" style="color:var(--ink)">${s.capacity_mw} <span class="text-xs font-normal" style="color:var(--ink-soft)">MW</span></span>
+      </div>
+      <p class="font-semibold text-sm leading-snug mb-2" style="color:var(--ink)">${s.name}</p>
+      <div class="text-xs space-y-1" style="color:var(--ink-soft)">
+        <p>📍 ${s.county}・${s.mgmt}管理處・${s.type}</p>
+        ${s.vendor ? `<p>🏭 ${s.vendor}</p>` : ''}
+        ${s.grid_date ? `<p>📅 併網：${s.grid_date}</p>` : ''}
+        ${s.expected_date ? `<p>📅 預計完工：${s.expected_date}</p>` : ''}
+        ${s.progress ? `<p class="line-clamp-2">⏱ ${s.progress}</p>` : ''}
+      </div>
+    </div>`;
+}
+
+function tplHydroCard(s) {
+  const cardCls = s.anomaly_level === 'red' ? 'anomaly-red' : (s.anomaly_level === 'yellow' ? 'anomaly-yellow' : '');
+  const stageColor = s.stage === '已完工/已完成' ? 'var(--success)' : 'var(--hydro)';
+  return `
+    <div class="site-card ${cardCls}" onclick="openMgmtModal('${s.mgmt}')">
+      <div class="flex items-start justify-between gap-2 mb-2">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          ${tplBadge(s.substage, stageColor, stageColor + '15')}
+          ${s.is_anomaly ? tplBadge(s.anomaly_type, s.anomaly_level === 'red' ? 'var(--alert)' : 'var(--warning)', s.anomaly_level === 'red' ? '#fee2e2' : '#fed7aa') : ''}
+        </div>
+        <span class="text-sm font-bold tabular-nums font-serif-tc flex-shrink-0" style="color:var(--ink)">${s.capacity_kw} <span class="text-xs font-normal" style="color:var(--ink-soft)">kW</span></span>
+      </div>
+      <p class="font-semibold text-sm leading-snug mb-2" style="color:var(--ink)">${s.name}</p>
+      <div class="text-xs space-y-1" style="color:var(--ink-soft)">
+        <p>📍 ${s.county}・${s.township}・${s.mgmt}管理處</p>
+        ${s.vendor ? `<p>🏭 ${(s.vendor||'').split('(')[0].trim()}</p>` : ''}
+        ${s.year ? `<p>📅 ${s.stage.includes('已完工') ? '完工年度' : '預計完工'}：${s.year}</p>` : ''}
+        ${s.operation ? `<p class="line-clamp-2">⏱ ${s.operation}</p>` : ''}
+      </div>
+    </div>`;
+}
+
+// ==================== 區塊：太陽光電 ====================
+function tplSolarDashboard() {
+  const anomalies = getSolarAnomalies();
+  const cancelled = DATA.solar.cancelled_sites;
+  const cancelledMw = cancelled.reduce((a, c) => a + c.capacity_mw, 0);
+  const target = DATA.solar.summary.target_mw;
+  const totalCompleted = DATA.solar.summary.total_completed_mw;
+  const achievement = totalCompleted / target * 100;
+  const mgmtSorted = [...DATA.solar.mgmt].sort((a, b) => a.achievement_pct - b.achievement_pct);
+  const zeroCompletion = mgmtSorted.filter(m => m.achievement_pct === 0);
+  
+  // 原因分類
+  const reasonMap = {};
+  cancelled.forEach(c => {
+    const cat = categorizeReason(c.reason);
+    reasonMap[cat] = (reasonMap[cat] || 0) + 1;
+  });
+  const reasonData = Object.entries(reasonMap).map(([n, v]) => ({n, v})).sort((a,b)=>b.v-a.v);
+  
+  // 廠商分析
+  const vendorAnalysis = getVendorAnalysis().slice(0, 8);
+  
+  return `
+    <!-- 1. 異常警示 -->
+    <section id="sec-solar-anomaly" class="section-card">
+      <div class="px-6 pt-6">
+        ${tplSectionHeader({ icon: ICON.alert, title: '異常警示案件', subtitle: '當前活躍異常（停工／撤案）與歷年累計解約資料', accent: 'var(--alert)', sectionId: 'sec-solar-anomaly', exportLabel: '光電-異常警示' })}
+      </div>
+      <div class="px-6 pb-6">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          ${tplKpi({ label: '當前活躍異常', value: anomalies.length, unit: '案', danger: true, sublabel: anomalies.reduce((a,c)=>a+c.capacity_mw,0).toFixed(2) + ' MW 受影響' })}
+          ${tplKpi({ label: '歷年累計解約撤案', value: cancelled.length, unit: '案', danger: true, sublabel: cancelledMw.toFixed(1) + ' MW 流失 (約佔目標 ' + (cancelledMw/target*100).toFixed(0) + '%)' })}
+          ${tplKpi({ label: '主要解約原因', value: reasonData[0]?.n || '-', accent: 'var(--warning)', sublabel: reasonData[0] ? reasonData[0].v + ' 案 (' + (reasonData[0].v/cancelled.length*100).toFixed(0) + '%)' : '' })}
+          ${tplKpi({ label: '0% 達成處數', value: zeroCompletion.length, unit: '處', danger: true, sublabel: zeroCompletion.map(m => m.name).join('、') })}
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-6">
+          <div class="lg:col-span-3 rounded-xl border p-5" style="border-color:var(--border);background:#fffbf5">
+            <h3 class="text-sm font-bold mb-3">歷年解約／撤案／下修案件原因分類</h3>
+            <div style="position:relative;height:220px"><canvas id="chart-reason"></canvas></div>
+          </div>
+          <div class="lg:col-span-2 rounded-xl border p-5" style="border-color:var(--border);background:#fffbf5">
+            <h3 class="text-sm font-bold mb-3">歷年解約容量趨勢</h3>
+            <div style="position:relative;height:220px"><canvas id="chart-year"></canvas></div>
+          </div>
+        </div>
+        
+        <!-- 當前活躍異常 -->
+        <h3 class="text-sm font-bold mb-3 flex items-center gap-2">
+          <span style="width:4px;height:16px;background:var(--alert);border-radius:2px"></span>
+          當前活躍異常案件 (${anomalies.length} 案)
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+          ${anomalies.map(a => `
+            <div class="rounded-lg border p-4" style="border-color:#fecaca;background:#fef2f2">
+              <div class="flex items-start justify-between gap-2 mb-2">
+                <div class="flex-1">
+                  <p class="font-semibold text-sm">${a.name}</p>
+                  <p class="text-xs mt-0.5" style="color:var(--ink-soft)">${a.mgmt}管理處・${a.county}・${a.type}</p>
+                </div>
+                ${tplBadge(a._reason, 'var(--alert)', '#fee2e2')}
+              </div>
+              <div class="flex items-center gap-3 text-xs mt-2 pt-2 border-t" style="border-color:#fecaca">
+                <span style="color:var(--ink-soft)">容量 <strong>${a.capacity_mw} MW</strong></span>
+                <span style="color:var(--ink-soft)">廠商 <strong>${a.vendor}</strong></span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        
+        ${tplCancelledList(cancelled)}
+      </div>
+    </section>
+    
+    <!-- 2. 廠商解約分析 (新增) -->
+    <section id="sec-solar-vendor" class="section-card mt-8">
+      <div class="px-6 pt-6">
+        ${tplSectionHeader({ icon: ICON.store, title: '廠商解約分析', subtitle: '從廠商維度切入歷年解約撤案：誰流失最多容量？誰最常被哪類問題卡住？', accent: 'var(--warning)', sectionId: 'sec-solar-vendor', exportLabel: '光電-廠商解約分析' })}
+      </div>
+      <div class="px-6 pb-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
+          <div class="lg:col-span-2 rounded-xl border p-5" style="border-color:var(--border)">
+            <h3 class="text-sm font-bold mb-3">廠商解約容量排名 (前 8 名)</h3>
+            <div style="position:relative;height:300px"><canvas id="chart-vendor-mw"></canvas></div>
+          </div>
+          <div class="rounded-xl border p-5" style="border-color:var(--border);background:#fff7ed">
+            <h3 class="text-sm font-bold mb-3">關鍵觀察</h3>
+            <div class="space-y-3 text-xs" style="color:var(--ink-soft)">
+              <div>
+                <p class="font-semibold" style="color:var(--ink)">最大流失廠商</p>
+                <p>${vendorAnalysis[0].name}</p>
+                <p class="tabular-nums mt-1"><strong style="color:var(--alert)">${vendorAnalysis[0].mw.toFixed(2)} MW</strong> / ${vendorAnalysis[0].count} 案・橫跨 ${vendorAnalysis[0].mgmts.length} 處</p>
+              </div>
+              <div class="pt-3 border-t" style="border-color:#fed7aa">
+                <p class="font-semibold" style="color:var(--ink)">最頻繁解約廠商</p>
+                ${(() => {
+                  const mostCases = [...vendorAnalysis].sort((a, b) => b.count - a.count)[0];
+                  return `<p>${mostCases.name}</p><p class="mt-1"><strong style="color:var(--alert)">${mostCases.count} 案</strong> / ${mostCases.mw.toFixed(2)} MW</p>`;
+                })()}
+              </div>
+              <div class="pt-3 border-t" style="border-color:#fed7aa">
+                <p class="font-semibold" style="color:var(--ink)">廠商總數</p>
+                <p class="mt-1">共 <strong>${getVendorAnalysis().length}</strong> 家廠商曾發生解約／撤案／下修事件</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <h3 class="text-sm font-bold mb-3">廠商解約明細</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs" style="border-collapse:collapse">
+            <thead>
+              <tr style="background:#fef3c7;border-bottom:1px solid var(--border)">
+                <th class="px-3 py-2 text-left font-semibold">廠商</th>
+                <th class="px-3 py-2 text-right font-semibold">解約案數</th>
+                <th class="px-3 py-2 text-right font-semibold">流失容量</th>
+                <th class="px-3 py-2 text-left font-semibold">涉及管理處</th>
+                <th class="px-3 py-2 text-left font-semibold">年度</th>
+                <th class="px-3 py-2 text-left font-semibold">主要原因</th>
+                <th class="px-3 py-2 text-center font-semibold no-print">明細</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${vendorAnalysis.map((v, i) => {
+                const topReason = Object.entries(v.reasons).sort((a,b)=>b[1]-a[1])[0];
+                return `
+                  <tr style="border-bottom:1px solid var(--border)" class="hover:bg-amber-50/30">
+                    <td class="px-3 py-2 font-semibold">${v.name}</td>
+                    <td class="px-3 py-2 text-right tabular-nums">${v.count}</td>
+                    <td class="px-3 py-2 text-right tabular-nums" style="color:var(--alert)"><strong>${v.mw.toFixed(2)} MW</strong></td>
+                    <td class="px-3 py-2" style="color:var(--ink-soft)">${v.mgmts.join('、')}</td>
+                    <td class="px-3 py-2 tabular-nums" style="color:var(--ink-soft)">${v.years.join('、')}</td>
+                    <td class="px-3 py-2">${tplBadge(topReason[0], 'var(--warning)')}${topReason[1] > 1 ? ` <span style="color:var(--ink-soft)">×${topReason[1]}</span>` : ''}</td>
+                    <td class="px-3 py-2 text-center no-print"><button class="filter-btn" onclick="openVendorModal(${i})">查看</button></td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <p class="text-[11px] mt-3" style="color:var(--ink-muted)">※ 表格顯示流失容量前 8 大廠商；點「查看」可看該廠商所有解約案場明細。</p>
+      </div>
+    </section>
+    
+    <!-- 3. 階段分布 -->
+    <section id="sec-solar-stage" class="section-card mt-8">
+      <div class="px-6 pt-6">
+        ${tplSectionHeader({ icon: ICON.layers, title: '各階段案件分布', subtitle: '全部 ' + DATA.solar.stages.reduce((a,c)=>a+c.cases,0) + ' 案、合計 ' + DATA.solar.stages.reduce((a,c)=>a+c.mw,0).toFixed(1) + ' MW', accent: 'var(--solar)', sectionId: 'sec-solar-stage', exportLabel: '光電-階段分布' })}
+      </div>
+      <div class="px-6 pb-6">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-3">
+          ${DATA.solar.stages.map(s => `
+            <div class="rounded-xl border p-4" style="border-color:var(--border);background:${s.color}08">
+              <div class="text-xs font-medium uppercase mb-1.5" style="color:${s.color};letter-spacing:0.06em">${s.name}</div>
+              <div class="flex items-baseline gap-1">
+                <span class="text-2xl font-bold tabular-nums font-serif-tc">${s.cases}</span>
+                <span class="text-xs" style="color:var(--ink-soft)">案</span>
+              </div>
+              <div class="text-sm font-semibold mt-1 tabular-nums" style="color:${s.color}">${s.mw.toFixed(2)} MW</div>
+              <div class="progress-bar mt-2"><div class="progress-fill" style="width:${(s.mw/600*100)}%;background:${s.color}"></div></div>
+              <div class="text-[11px] mt-1 tabular-nums" style="color:var(--ink-muted)">${(s.mw/600*100).toFixed(1)}% of 600MW 目標</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </section>
+    
+    <!-- 4. 目標達成率 -->
+    <section id="sec-solar-target" class="section-card mt-8">
+      <div class="px-6 pt-6">
+        ${tplSectionHeader({ icon: ICON.target, title: '115 年目標達成率', subtitle: '累計完工容量 vs 至 115 年總目標 600 MW', accent: 'var(--solar)', sectionId: 'sec-solar-target', exportLabel: '光電-目標達成率' })}
+      </div>
+      <div class="px-6 pb-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div class="rounded-xl border p-6 flex flex-col items-center justify-center" style="border-color:var(--border);background:linear-gradient(135deg,#fef3c7 0%,#fffbf5 100%)">
+            <div style="position:relative;width:200px;height:200px"><canvas id="chart-achievement"></canvas><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none"><div class="text-4xl font-bold tabular-nums font-serif-tc" style="color:var(--solar)">${achievement.toFixed(1)}%</div><div class="text-xs font-medium mt-1" style="color:var(--ink-soft)">${totalCompleted.toFixed(2)} / ${target} MW</div></div></div>
+            <div class="mt-4 text-center">
+              <div class="text-sm font-semibold">整體目標達成</div>
+              <div class="text-xs mt-1" style="color:var(--ink-soft)">距離 100% 還需 ${(target - totalCompleted).toFixed(1)} MW</div>
+            </div>
+          </div>
+          <div class="lg:col-span-2 rounded-xl border p-5" style="border-color:var(--border)">
+            <h3 class="text-sm font-bold mb-4">各管理處達成率（由低至高排序，可點擊深入查看）</h3>
+            <div class="space-y-2.5">
+              ${mgmtSorted.map(m => {
+                const color = m.achievement_pct >= 100 ? 'var(--success)' : (m.achievement_pct >= 50 ? 'var(--solar)' : (m.achievement_pct >= 20 ? 'var(--warning)' : 'var(--alert)'));
+                return `
+                  <div class="mgmt-clickable rounded p-2 -mx-2" onclick="openMgmtModal('${m.name}')">
+                    <div class="flex items-center justify-between text-xs mb-1">
+                      <div class="flex items-center gap-2">
+                        <span class="font-semibold" style="color:${m.achievement_pct === 0 ? 'var(--alert)' : 'var(--ink)'};min-width:48px">${m.name}</span>
+                        ${m.achievement_pct === 0 ? tplBadge('0% 達成', 'var(--alert)', '#fee2e2') : ''}
+                        ${m.achievement_pct >= 100 ? tplBadge('已達標', 'var(--success)', '#d1fae5') : ''}
+                      </div>
+                      <span class="tabular-nums" style="color:var(--ink-soft)"><strong style="color:${m.achievement_pct === 0 ? 'var(--alert)' : 'var(--ink)'}">${m.completed_mw.toFixed(2)}</strong> / ${m.target_mw} MW (<strong>${m.achievement_pct}%</strong>)</span>
+                    </div>
+                    <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(m.achievement_pct,100)}%;background:${color}"></div></div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- 5. 管理處綜合 -->
+    <section id="sec-solar-mgmt" class="section-card mt-8">
+      <div class="px-6 pt-6">
+        ${tplSectionHeader({ icon: ICON.building, title: '各管理處綜合進度比較', subtitle: '完工＋施工＋行政＋規劃 容量堆疊', accent: 'var(--solar)', sectionId: 'sec-solar-mgmt', exportLabel: '光電-管理處進度' })}
+      </div>
+      <div class="px-6 pb-6">
+        <div style="position:relative;height:380px"><canvas id="chart-mgmt-solar"></canvas></div>
+        <p class="text-[11px] mt-3 text-center" style="color:var(--ink-muted)">※ 點圖表下方管理處名稱可深入查看該處所有案場</p>
+        <div class="flex flex-wrap gap-2 mt-3 justify-center">
+          ${DATA.solar.mgmt.map(m => `<button class="filter-btn" onclick="openMgmtModal('${m.name}')">${m.name} 處</button>`).join('')}
+        </div>
+      </div>
+    </section>
+    
+    <!-- 6. 案場卡片 -->
+    <section id="sec-solar-sites" class="section-card mt-8">
+      <div class="px-6 pt-6">
+        ${tplSectionHeader({ icon: ICON.file, title: '案場層級檢視', subtitle: '依管理處／類型／階段／關鍵字篩選', accent: 'var(--solar)' })}
+      </div>
+      <div class="px-6 pb-6">
+        ${tplSolarFilters()}
+        <div id="solar-cards-container">${tplSolarCards()}</div>
+      </div>
+    </section>
+  `;
+}
+
+function tplCancelledList(cancelled) {
+  const filtered = state.cancelYear === 'all' ? cancelled : cancelled.filter(c => c.year === parseInt(state.cancelYear));
+  const display = state.cancelExpanded ? filtered : filtered.slice(0, 5);
+  return `
+    <div>
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h3 class="text-sm font-bold flex items-center gap-2">
+          <span style="width:4px;height:16px;background:var(--warning);border-radius:2px"></span>
+          歷年解約／撤案／下修清單 (${cancelled.length} 案)
+        </h3>
+        <div class="flex items-center gap-1.5">
+          ${['all', 112, 113, 114].map(y => `<button class="filter-btn ${String(state.cancelYear) === String(y) ? 'active' : ''}" onclick="setState({cancelYear:'${y}'})">${y === 'all' ? '全部' : y + '年'}</button>`).join('')}
+        </div>
+      </div>
+      <div class="space-y-1.5" style="max-height:${state.cancelExpanded ? '600px' : 'auto'};overflow-y:auto">
+        ${display.map(c => `
+          <div class="grid grid-cols-12 gap-2 items-center px-3 py-2 rounded-md text-xs" style="background:white;border:1px solid var(--border)">
+            <div class="col-span-1">${tplBadge(c.year + '年', 'var(--warning)')}</div>
+            <div class="col-span-1">${tplBadge(c.subcategory, 'var(--ink-soft)')}</div>
+            <div class="col-span-3 truncate" title="${c.name}"><strong>${c.name.replace(/^(圳路|埤塘|農業水庫)-[^-]+管理處-/, '')}</strong></div>
+            <div class="col-span-1 tabular-nums text-right"><strong>${c.capacity_mw} MW</strong></div>
+            <div class="col-span-1 text-center" style="color:var(--ink-soft)">${c.mgmt}</div>
+            <div class="col-span-5 truncate" style="color:var(--ink-soft)" title="${c.reason}">${c.reason}</div>
+          </div>
+        `).join('')}
+      </div>
+      ${filtered.length > 5 ? `<button class="text-xs font-medium mt-3 mx-auto block" style="color:var(--solar)" onclick="setState({cancelExpanded:${!state.cancelExpanded}})">${state.cancelExpanded ? '收合' : '展開全部 ' + filtered.length + ' 案'} ▾</button>` : ''}
+    </div>`;
+}
+
+function tplSolarFilters() {
+  return `
+    <div class="rounded-xl p-4 mb-5 space-y-3" style="background:#f8fafc">
+      <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center gap-1.5">${ICON.search}<span class="text-xs font-medium" style="color:var(--ink-soft)">關鍵字</span></div>
+        <input type="text" id="solar-search" placeholder="搜尋案場名稱或廠商..." value="${state.solar.search}" oninput="setFilter('solar.search', this.value)" style="flex:1;min-width:200px">
+      </div>
+      <div class="flex items-start gap-4 flex-wrap">
+        ${tplFilterGroup('管理處', state.solar.mgmt, ['桃園','石門','新竹','苗栗','臺中','南投','彰化','雲林','嘉南','高雄','屏東','宜蘭','花蓮','臺東'], 'solar.mgmt')}
+        ${tplFilterGroup('類型', state.solar.type, ['圳路','農業水庫','埤塘'], 'solar.type')}
+        ${tplFilterGroup('階段', state.solar.stage, ['已完工','施工中','待施工','停工中','行政程序中','規劃推動'], 'solar.stage')}
+      </div>
+    </div>`;
+}
+
+function tplSolarCards() {
+  const all = [
+    ...DATA.solar.completed_sites.map(s => ({...s, _stage: '已完工'})),
+    ...DATA.solar.construction_sites.map(s => ({...s, _stage: s.stage})),
+    ...DATA.solar.admin_sites.map(s => ({...s, _stage: '行政程序中'})),
+    ...DATA.solar.planning_sites.map(s => ({...s, _stage: '規劃推動'}))
+  ];
+  const f = state.solar;
+  const filtered = all.filter(s => {
+    if (f.mgmt !== 'all' && s.mgmt !== f.mgmt) return false;
+    if (f.type !== 'all' && s.type !== f.type) return false;
+    if (f.stage !== 'all' && s._stage !== f.stage) return false;
+    if (f.search && !(s.name||'').toLowerCase().includes(f.search.toLowerCase()) && !(s.vendor||'').toLowerCase().includes(f.search.toLowerCase())) return false;
+    return true;
+  });
+  const display = filtered.slice(0, 60);
+  return `
+    <p class="text-xs mb-3" style="color:var(--ink-soft)">目前篩選顯示 <strong>${filtered.length}</strong> / ${all.length} 案${filtered.length > 60 ? '，效能考量先顯示前 60 筆，請使用篩選器縮小範圍' : ''}</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      ${display.length > 0 ? display.map(tplSolarCard).join('') : '<p class="col-span-3 text-center py-8 text-sm" style="color:var(--ink-muted)">無符合條件的案場</p>'}
+    </div>`;
+}
+
+// ==================== 區塊：小水力 ====================
+function tplHydroDashboard() {
+  const anomalies = DATA.hydro.sites.filter(s => s.is_anomaly);
+  const red = anomalies.filter(a => a.anomaly_level === 'red');
+  const yellow = anomalies.filter(a => a.anomaly_level === 'yellow');
+  
+  const typeMap = {};
+  anomalies.forEach(a => { typeMap[a.anomaly_type] = (typeMap[a.anomaly_type] || 0) + 1; });
+  
+  const substageMap = {};
+  DATA.hydro.sites.forEach(s => {
+    if (!substageMap[s.substage]) substageMap[s.substage] = { name: s.substage, cases: 0, kw: 0 };
+    substageMap[s.substage].cases += 1;
+    substageMap[s.substage].kw += s.capacity_kw;
+  });
+  const substageOrder = ['(A)小水力發電廠','(B)測試案場-已完成','(C)專案示範案場','(D)招標案場','(E)測試案場-推動中'];
+  const substageData = substageOrder.map(n => substageMap[n]).filter(Boolean);
+  
+  const mgmtSorted = [...DATA.hydro.mgmt].sort((a,b) => b.capacity_kw - a.capacity_kw);
+  
+  return `
+    <section id="sec-hydro-anomaly" class="section-card">
+      <div class="px-6 pt-6">
+        ${tplSectionHeader({ icon: ICON.alert, title: '異常警示案件', subtitle: '紅燈：撤案／終止／暫緩／拆機組；黃燈：機組調整／展延', accent: 'var(--alert)', sectionId: 'sec-hydro-anomaly', exportLabel: '小水力-異常警示' })}
+      </div>
+      <div class="px-6 pb-6">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          ${tplKpi({ label: '紅燈案件', value: red.length, unit: '案', danger: true, sublabel: '累計影響 ' + red.reduce((a,c)=>a+c.capacity_kw,0).toFixed(0) + ' kW' })}
+          ${tplKpi({ label: '黃燈案件', value: yellow.length, unit: '案', accent: 'var(--warning)', sublabel: '累計 ' + yellow.reduce((a,c)=>a+c.capacity_kw,0).toFixed(0) + ' kW 進度延宕' })}
+          ${tplKpi({ label: '主要異常類型', value: Object.entries(typeMap).sort((a,b)=>b[1]-a[1])[0]?.[0] || '-', accent: 'var(--warning)', sublabel: Object.entries(typeMap).sort((a,b)=>b[1]-a[1])[0]?.[1] + ' 案' })}
+          ${tplKpi({ label: '異常案件比', value: (anomalies.length/DATA.hydro.sites.length*100).toFixed(0) + '%', accent: 'var(--warning)', sublabel: '共 ' + anomalies.length + ' / ' + DATA.hydro.sites.length + ' 案場' })}
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-6">
+          <div class="lg:col-span-3 rounded-xl border p-5" style="border-color:var(--border);background:#fef2f2">
+            <h3 class="text-sm font-bold mb-3">異常類型分布</h3>
+            <div style="position:relative;height:220px"><canvas id="chart-hydro-type"></canvas></div>
+          </div>
+          <div class="lg:col-span-2 rounded-xl border p-5" style="border-color:var(--border);background:#fef2f2">
+            <h3 class="text-sm font-bold mb-3">各管理處異常案件數</h3>
+            <div style="position:relative;height:220px"><canvas id="chart-hydro-mgmt-anomaly"></canvas></div>
+          </div>
+        </div>
+        
+        <h3 class="text-sm font-bold mb-3 flex items-center gap-2">
+          <span style="width:4px;height:16px;background:var(--alert);border-radius:2px"></span>
+          異常案件清單（紅燈優先）
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          ${[...red, ...yellow].map(a => `
+            <div class="rounded-lg border p-4 mgmt-clickable" style="border-color:${a.anomaly_level === 'red' ? '#fecaca' : '#fed7aa'};background:${a.anomaly_level === 'red' ? '#fef2f2' : '#fff7ed'}" onclick="openMgmtModal('${a.mgmt}')">
+              <div class="flex items-start justify-between gap-2 mb-2">
+                <div class="flex-1">
+                  <p class="font-semibold text-sm">${a.name}</p>
+                  <p class="text-xs mt-0.5" style="color:var(--ink-soft)">${a.mgmt}管理處・${a.county}${a.township}</p>
+                </div>
+                ${tplBadge(a.anomaly_type, a.anomaly_level === 'red' ? 'var(--alert)' : 'var(--warning)', a.anomaly_level === 'red' ? '#fee2e2' : '#fed7aa')}
+              </div>
+              <div class="flex items-center gap-3 text-xs flex-wrap mb-2">
+                <span style="color:var(--ink-soft)">容量 <strong>${a.capacity_kw} kW</strong></span>
+                <span style="color:var(--ink-soft)">類別 <strong>${a.substage}</strong></span>
+              </div>
+              <p class="text-xs pt-2 border-t" style="color:var(--ink-soft);border-color:${a.anomaly_level === 'red' ? '#fecaca' : '#fed7aa'}">
+                <strong style="color:var(--ink)">辦理情形：</strong>${a.operation}
+              </p>
+              ${a.vendor ? `<p class="text-xs mt-1" style="color:var(--ink-muted)">廠商：${a.vendor.split('(')[0].trim()}</p>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </section>
+    
+    <section id="sec-hydro-stage" class="section-card mt-8">
+      <div class="px-6 pt-6">
+        ${tplSectionHeader({ icon: ICON.layers, title: '案場類別分布', subtitle: '全部 ' + DATA.hydro.sites.length + ' 案、合計 ' + (DATA.hydro.sites.reduce((a,c)=>a+c.capacity_kw,0)/1000).toFixed(2) + ' MW', accent: 'var(--hydro)', sectionId: 'sec-hydro-stage', exportLabel: '小水力-類別分布' })}
+      </div>
+      <div class="px-6 pb-6">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+          ${substageData.map(s => {
+            const color = SUBSTAGE_COLORS[s.name] || 'var(--hydro)';
+            return `
+              <div class="rounded-xl border p-4" style="border-color:var(--border);background:${color}08">
+                <div class="text-xs font-medium mb-1.5" style="color:${color}">${s.name}</div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-2xl font-bold tabular-nums font-serif-tc">${s.cases}</span>
+                  <span class="text-xs" style="color:var(--ink-soft)">案</span>
+                </div>
+                <div class="text-sm font-semibold mt-1 tabular-nums" style="color:${color}">${s.kw.toFixed(1)} kW</div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </section>
+    
+    <section id="sec-hydro-mgmt" class="section-card mt-8">
+      <div class="px-6 pt-6">
+        ${tplSectionHeader({ icon: ICON.building, title: '各管理處推動概況', subtitle: '按容量排序，可點任一處深入查看', accent: 'var(--hydro)', sectionId: 'sec-hydro-mgmt', exportLabel: '小水力-管理處概況' })}
+      </div>
+      <div class="px-6 pb-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div>
+            <h3 class="text-sm font-bold mb-3">容量總和（kW）</h3>
+            <div style="position:relative;height:400px"><canvas id="chart-hydro-mgmt-cap"></canvas></div>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold mb-3">各管理處案件數（含異常標示，可點擊）</h3>
+            <div class="space-y-2">
+              ${mgmtSorted.map(m => `
+                <div class="mgmt-clickable rounded-lg border p-3" style="border-color:var(--border)" onclick="openMgmtModal('${m.name}')">
+                  <div class="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-bold text-sm">${m.name}</span>
+                      <span class="text-xs tabular-nums" style="color:var(--ink-soft)">${m.cases} 案 / ${m.capacity_kw.toFixed(0)} kW</span>
+                      ${m.anomaly_cases > 0 ? tplBadge('異常 ' + m.anomaly_cases, 'var(--alert)', '#fee2e2') : ''}
+                    </div>
+                  </div>
+                  <div class="flex" style="height:8px;border-radius:9999px;overflow:hidden;background:#f1f5f9">
+                    <div style="width:${m.completed_cases/m.cases*100}%;background:var(--success)"></div>
+                    <div style="width:${m.in_progress_cases/m.cases*100}%;background:var(--hydro)"></div>
+                  </div>
+                  <div class="flex justify-between mt-1 text-[11px]" style="color:var(--ink-muted)">
+                    <span>完工 ${m.completed_cases}</span>
+                    <span>推動中 ${m.in_progress_cases}</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <section id="sec-hydro-sites" class="section-card mt-8">
+      <div class="px-6 pt-6">
+        ${tplSectionHeader({ icon: ICON.file, title: '案場層級檢視', subtitle: '依管理處／類別／異常／關鍵字篩選', accent: 'var(--hydro)' })}
+      </div>
+      <div class="px-6 pb-6">
+        ${tplHydroFilters()}
+        <div id="hydro-cards-container">${tplHydroCards()}</div>
+      </div>
+    </section>
+  `;
+}
+
+function tplHydroFilters() {
+  const mgmts = [...new Set(DATA.hydro.sites.map(s => s.mgmt))].sort();
+  return `
+    <div class="rounded-xl p-4 mb-5 space-y-3" style="background:#f8fafc">
+      <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center gap-1.5">${ICON.search}<span class="text-xs font-medium" style="color:var(--ink-soft)">關鍵字</span></div>
+        <input type="text" id="hydro-search" placeholder="搜尋案場名稱或廠商..." value="${state.hydro.search}" oninput="setFilter('hydro.search', this.value)" style="flex:1;min-width:200px">
+      </div>
+      <div class="flex items-start gap-4 flex-wrap">
+        ${tplFilterGroup('管理處', state.hydro.mgmt, mgmts, 'hydro.mgmt')}
+        ${tplFilterGroup('類別', state.hydro.substage, ['(A)小水力發電廠','(B)測試案場-已完成','(C)專案示範案場','(D)招標案場','(E)測試案場-推動中'], 'hydro.substage')}
+        ${tplFilterGroup('異常', state.hydro.anomaly, ['red','yellow','none'], 'hydro.anomaly')}
+      </div>
+    </div>`;
+}
+
+function tplHydroCards() {
+  const f = state.hydro;
+  const filtered = DATA.hydro.sites.filter(s => {
+    if (f.mgmt !== 'all' && s.mgmt !== f.mgmt) return false;
+    if (f.substage !== 'all' && s.substage !== f.substage) return false;
+    if (f.anomaly === 'red' && s.anomaly_level !== 'red') return false;
+    if (f.anomaly === 'yellow' && s.anomaly_level !== 'yellow') return false;
+    if (f.anomaly === 'none' && s.is_anomaly) return false;
+    if (f.search && !s.name.toLowerCase().includes(f.search.toLowerCase()) && !(s.vendor||'').toLowerCase().includes(f.search.toLowerCase())) return false;
+    return true;
+  });
+  return `
+    <p class="text-xs mb-3" style="color:var(--ink-soft)">目前篩選顯示 <strong>${filtered.length}</strong> / ${DATA.hydro.sites.length} 案場</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      ${filtered.length > 0 ? filtered.map(tplHydroCard).join('') : '<p class="col-span-3 text-center py-8 text-sm" style="color:var(--ink-muted)">無符合條件的案場</p>'}
+    </div>`;
+}
+
+// ==================== 管理處 Modal ====================
+function tplMgmtModal(name) {
+  const solarSites = getMgmtSolarSites(name);
+  const hydroSites = DATA.hydro.sites.filter(s => s.mgmt === name);
+  const solarMgmt = DATA.solar.mgmt.find(m => m.name === name);
+  const hydroMgmt = DATA.hydro.mgmt.find(m => m.name === name);
+  
+  return `
+    <div class="modal-backdrop no-print" onclick="if(event.target===this)closeModal()">
+      <div class="modal-content">
+        <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between" style="border-color:var(--border);z-index:1">
+          <div>
+            <p class="text-xs font-medium uppercase mb-0.5" style="color:var(--ink-muted);letter-spacing:0.1em">管理處深入查看</p>
+            <h2 class="text-xl font-bold font-serif-tc">${name}管理處</h2>
+          </div>
+          <button class="icon-btn" onclick="closeModal()">${ICON.close} 關閉</button>
+        </div>
+        <div class="p-6">
+          ${solarMgmt ? `
+            <div class="mb-6">
+              <h3 class="text-sm font-bold mb-3 flex items-center gap-2">${ICON.sun}<span>太陽光電（${solarSites.length} 案）</span></h3>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                ${tplKpi({ label: '至 115 年目標', value: solarMgmt.target_mw, unit: 'MW' })}
+                ${tplKpi({ label: '已完工', value: solarMgmt.completed_mw.toFixed(2), unit: 'MW', accent: 'var(--success)' })}
+                ${tplKpi({ label: '達成率', value: solarMgmt.achievement_pct + '%', accent: solarMgmt.achievement_pct === 0 ? 'var(--alert)' : 'var(--solar)', danger: solarMgmt.achievement_pct === 0 })}
+                ${tplKpi({ label: '已掌握案源', value: solarMgmt.total_potential_mw.toFixed(2), unit: 'MW' })}
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                ${solarSites.map(tplSolarCard).join('')}
+              </div>
+            </div>
+          ` : ''}
+          ${hydroSites.length > 0 ? `
+            <div>
+              <h3 class="text-sm font-bold mb-3 flex items-center gap-2">${ICON.drop}<span>小水力（${hydroSites.length} 案）</span></h3>
+              ${hydroMgmt ? `
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  ${tplKpi({ label: '總案數', value: hydroMgmt.cases, unit: '案' })}
+                  ${tplKpi({ label: '已完工', value: hydroMgmt.completed_cases, unit: '案', accent: 'var(--success)', sublabel: hydroMgmt.completed_kw.toFixed(0) + ' kW' })}
+                  ${tplKpi({ label: '推動中', value: hydroMgmt.in_progress_cases, unit: '案', accent: 'var(--hydro)', sublabel: hydroMgmt.in_progress_kw.toFixed(0) + ' kW' })}
+                  ${tplKpi({ label: '異常案件', value: hydroMgmt.anomaly_cases, unit: '案', danger: hydroMgmt.anomaly_cases > 0, sublabel: hydroMgmt.anomaly_cases > 0 ? '需特別關注' : '正常' })}
+                </div>
+              ` : ''}
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                ${hydroSites.map(tplHydroCard).join('')}
+              </div>
+            </div>
+          ` : ''}
+          ${solarSites.length === 0 && hydroSites.length === 0 ? '<p class="text-center py-12" style="color:var(--ink-muted)">此管理處無案場資料</p>' : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function tplVendorModal(idx) {
+  const v = getVendorAnalysis()[idx];
+  if (!v) return '';
+  return `
+    <div class="modal-backdrop no-print" onclick="if(event.target===this)closeModal()">
+      <div class="modal-content">
+        <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between" style="border-color:var(--border);z-index:1">
+          <div>
+            <p class="text-xs font-medium uppercase mb-0.5" style="color:var(--ink-muted);letter-spacing:0.1em">廠商解約明細</p>
+            <h2 class="text-xl font-bold font-serif-tc">${v.name}</h2>
+            <p class="text-sm mt-1" style="color:var(--ink-soft)">累計解約 ${v.count} 案、流失容量 <strong style="color:var(--alert)">${v.mw.toFixed(2)} MW</strong>、涉及 ${v.mgmts.join('、')} 管理處</p>
+          </div>
+          <button class="icon-btn" onclick="closeModal()">${ICON.close} 關閉</button>
+        </div>
+        <div class="p-6">
+          <table class="w-full text-xs" style="border-collapse:collapse">
+            <thead>
+              <tr style="background:#fef3c7;border-bottom:1px solid var(--border)">
+                <th class="px-3 py-2 text-left">年度</th>
+                <th class="px-3 py-2 text-left">類別</th>
+                <th class="px-3 py-2 text-left">案場名稱</th>
+                <th class="px-3 py-2 text-right">容量</th>
+                <th class="px-3 py-2 text-left">管理處</th>
+                <th class="px-3 py-2 text-left">原因</th>
+                <th class="px-3 py-2 text-left">處理方式</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${v.cases.map(c => `
+                <tr style="border-bottom:1px solid var(--border)">
+                  <td class="px-3 py-2">${tplBadge(c.year + '年', 'var(--warning)')}</td>
+                  <td class="px-3 py-2">${tplBadge(c.subcategory, 'var(--ink-soft)')}</td>
+                  <td class="px-3 py-2"><strong>${c.name}</strong></td>
+                  <td class="px-3 py-2 text-right tabular-nums">${c.capacity_mw} MW</td>
+                  <td class="px-3 py-2">${c.mgmt}</td>
+                  <td class="px-3 py-2" style="color:var(--ink-soft)">${c.reason}</td>
+                  <td class="px-3 py-2" style="color:var(--ink-soft)">${c.handling}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ==================== Header & Footer ====================
+function tplHeader() {
+  return `
+    <header class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b" style="border-color:var(--border)">
+      <div class="max-w-7xl mx-auto px-6 py-4">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p class="text-xs font-medium uppercase mb-1" style="color:var(--ink-muted);letter-spacing:0.15em">農田水利署．水域型農業綠能</p>
+            <h1 class="text-2xl font-bold tracking-tight font-serif-tc">管制考核儀表板</h1>
+            <p class="text-xs mt-1" style="color:var(--ink-soft)">資料更新日期：${DATA.updated_at}（民國 115 年 5 月 14 日）</p>
+          </div>
+          <div class="flex items-center gap-3 flex-wrap">
+            <button class="icon-btn no-print" onclick="printDashboard()">${ICON.print}列印 PDF (A4)</button>
+            <div class="flex items-center gap-2 rounded-xl p-1" style="background:#f1f5f9">
+              <button class="tab-btn ${state.tab === 'solar' ? 'active-solar' : ''}" onclick="setState({tab:'solar'})">
+                ${ICON.sun}<span>太陽光電</span><span class="text-xs opacity-80">${DATA.solar.summary.total_completed_cases + DATA.solar.construction_sites.length + DATA.solar.admin_sites.length + DATA.solar.planning_sites.length} 案</span>
+              </button>
+              <button class="tab-btn ${state.tab === 'hydro' ? 'active-hydro' : ''}" onclick="setState({tab:'hydro'})">
+                ${ICON.drop}<span>小水力</span><span class="text-xs opacity-80">${DATA.hydro.sites.length} 案</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 pt-3 border-t flex items-center gap-6 flex-wrap text-xs" style="border-color:var(--border);color:var(--ink-soft)">
+          ${state.tab === 'solar' ? `
+            <span>已完工容量：<strong class="tabular-nums" style="color:var(--ink)">${DATA.solar.summary.total_completed_mw} MW</strong> / 目標 600 MW</span>
+            <span>整體達成率：<strong class="tabular-nums" style="color:var(--solar)">${(DATA.solar.summary.total_completed_mw/600*100).toFixed(1)}%</strong></span>
+            <span>圳路長度：<strong class="tabular-nums" style="color:var(--ink)">${DATA.solar.summary.channel_length_km} km</strong></span>
+            <span>估計年發電量：<strong class="tabular-nums" style="color:var(--ink)">${(DATA.solar.summary.gen_total_million_kwh/10000).toFixed(2)} 億度</strong></span>
+          ` : `
+            <span>總案場：<strong class="tabular-nums" style="color:var(--ink)">${DATA.hydro.summary.total_cases} 案</strong></span>
+            <span>總容量：<strong class="tabular-nums" style="color:var(--ink)">${(DATA.hydro.summary.total_capacity_kw/1000).toFixed(2)} MW</strong></span>
+            <span>已完工：<strong class="tabular-nums" style="color:var(--success)">${DATA.hydro.summary.completed_cases} 案 / ${(DATA.hydro.summary.completed_capacity_kw/1000).toFixed(2)} MW</strong></span>
+            <span>推動中：<strong class="tabular-nums" style="color:var(--hydro)">${DATA.hydro.summary.in_progress_cases} 案 / ${(DATA.hydro.summary.in_progress_capacity_kw/1000).toFixed(2)} MW</strong></span>
+          `}
+        </div>
+      </div>
+    </header>`;
+}
+
+// ==================== 圖表渲染 ====================
+const chartInstances = {};
+function destroyCharts() {
+  Object.values(chartInstances).forEach(c => c && c.destroy && c.destroy());
+  Object.keys(chartInstances).forEach(k => delete chartInstances[k]);
+}
+
+function renderCharts() {
+  destroyCharts();
+  const baseFont = { family: 'Noto Sans TC, sans-serif', size: 11 };
+  
+  if (state.tab === 'solar') {
+    const cancelled = DATA.solar.cancelled_sites;
+    const reasonMap = {};
+    cancelled.forEach(c => { const cat = categorizeReason(c.reason); reasonMap[cat] = (reasonMap[cat] || 0) + 1; });
+    const reasonData = Object.entries(reasonMap).sort((a,b)=>b[1]-a[1]);
+    
+    // 原因分類
+    const c1 = document.getElementById('chart-reason');
+    if (c1) chartInstances.reason = new Chart(c1, {
+      type: 'bar',
+      data: { labels: reasonData.map(r=>r[0]), datasets: [{ data: reasonData.map(r=>r[1]), backgroundColor: '#dc2626', borderRadius: 4 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: baseFont } }, y: { ticks: { font: baseFont } } } }
+    });
+    
+    // 年度趨勢
+    const yearMap = { 112: 0, 113: 0, 114: 0 };
+    cancelled.forEach(c => { yearMap[c.year] += c.capacity_mw; });
+    const c2 = document.getElementById('chart-year');
+    if (c2) chartInstances.year = new Chart(c2, {
+      type: 'bar',
+      data: { labels: ['112年','113年','114年'], datasets: [{ label: '解約容量 (MW)', data: [yearMap[112], yearMap[113], yearMap[114]], backgroundColor: '#dc2626', borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: baseFont } }, y: { ticks: { font: baseFont } } } }
+    });
+    
+    // 廠商
+    const vendors = getVendorAnalysis().slice(0, 8);
+    const c3 = document.getElementById('chart-vendor-mw');
+    if (c3) chartInstances.vendor = new Chart(c3, {
+      type: 'bar',
+      data: { labels: vendors.map(v => v.name.length > 14 ? v.name.substring(0,14)+'…' : v.name), datasets: [{ label: '流失容量 (MW)', data: vendors.map(v => parseFloat(v.mw.toFixed(2))), backgroundColor: '#d97706', borderRadius: 4 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.x + ' MW (' + vendors[ctx.dataIndex].count + ' 案)' } } }, scales: { x: { ticks: { font: baseFont } }, y: { ticks: { font: { ...baseFont, size: 10 } } } } }
+    });
+    
+    // 達成率 doughnut
+    const totalCompleted = DATA.solar.summary.total_completed_mw;
+    const target = DATA.solar.summary.target_mw;
+    const c4 = document.getElementById('chart-achievement');
+    if (c4) chartInstances.achievement = new Chart(c4, {
+      type: 'doughnut',
+      data: { datasets: [{ data: [totalCompleted, target - totalCompleted], backgroundColor: ['#b45309','#fde68a'], borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+    });
+    
+    // 管理處堆疊
+    const c5 = document.getElementById('chart-mgmt-solar');
+    if (c5) {
+      const m = [...DATA.solar.mgmt].sort((a,b)=>b.total_potential_mw - a.total_potential_mw);
+      chartInstances.mgmtSolar = new Chart(c5, {
+        type: 'bar',
+        data: { labels: m.map(x=>x.name), datasets: [
+          { label: '已完工', data: m.map(x=>x.completed_mw), backgroundColor: '#059669' },
+          { label: '施工中', data: m.map(x=>x.construction_mw), backgroundColor: '#0891b2' },
+          { label: '行政程序', data: m.map(x=>x.admin_mw), backgroundColor: '#6366f1' },
+          { label: '規劃推動', data: m.map(x=>x.planning_mw), backgroundColor: '#94a3b8' }
+        ]},
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: baseFont, padding: 12, boxWidth: 12 } }, tooltip: { callbacks: { footer: items => { const total = items.reduce((a,b)=>a+b.parsed.y,0); return '合計 ' + total.toFixed(2) + ' MW'; } } } }, scales: { x: { stacked: true, ticks: { font: baseFont } }, y: { stacked: true, ticks: { font: baseFont, callback: v => v + ' MW' } } } }
+      });
+    }
+  }
+  
+  if (state.tab === 'hydro') {
+    const anomalies = DATA.hydro.sites.filter(s => s.is_anomaly);
+    const typeMap = {};
+    anomalies.forEach(a => { typeMap[a.anomaly_type] = (typeMap[a.anomaly_type] || 0) + 1; });
+    const typeData = Object.entries(typeMap).sort((a,b)=>b[1]-a[1]);
+    
+    const c1 = document.getElementById('chart-hydro-type');
+    if (c1) chartInstances.hydroType = new Chart(c1, {
+      type: 'bar',
+      data: { labels: typeData.map(t=>t[0]), datasets: [{ data: typeData.map(t=>t[1]), backgroundColor: '#dc2626', borderRadius: 4 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: baseFont } }, y: { ticks: { font: baseFont } } } }
+    });
+    
+    const mgmtA = DATA.hydro.mgmt.filter(m=>m.anomaly_cases>0).sort((a,b)=>b.anomaly_cases-a.anomaly_cases);
+    const c2 = document.getElementById('chart-hydro-mgmt-anomaly');
+    if (c2) chartInstances.hydroMgmtAnomaly = new Chart(c2, {
+      type: 'bar',
+      data: { labels: mgmtA.map(m=>m.name), datasets: [{ data: mgmtA.map(m=>m.anomaly_cases), backgroundColor: '#dc2626', borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: baseFont } }, y: { ticks: { font: baseFont } } } }
+    });
+    
+    const mgmt = [...DATA.hydro.mgmt].sort((a,b)=>b.capacity_kw-a.capacity_kw);
+    const c3 = document.getElementById('chart-hydro-mgmt-cap');
+    if (c3) chartInstances.hydroMgmtCap = new Chart(c3, {
+      type: 'bar',
+      data: { labels: mgmt.map(m=>m.name), datasets: [
+        { label: '已完工', data: mgmt.map(m=>m.completed_kw), backgroundColor: '#059669' },
+        { label: '推動中', data: mgmt.map(m=>m.in_progress_kw), backgroundColor: '#0f766e' }
+      ]},
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: baseFont, padding: 12, boxWidth: 12 } } }, scales: { x: { stacked: true, ticks: { font: baseFont, callback: v => v + ' kW' } }, y: { stacked: true, ticks: { font: baseFont } } } }
+    });
+  }
+}
+
+// ==================== 互動 ====================
+function setFilter(path, value) {
+  const [section, key] = path.split('.');
+  if (!key) {
+    setState({ [section]: value });
+  } else {
+    state[section][key] = value;
+    // 部分篩選不需重畫全頁，只重畫卡片
+    if (key === 'search' || key === 'mgmt' || key === 'type' || key === 'stage' || key === 'substage' || key === 'anomaly') {
+      const container = document.getElementById(section + '-cards-container');
+      if (container) {
+        container.innerHTML = section === 'solar' ? tplSolarCards() : tplHydroCards();
+        // 更新篩選器按鈕狀態
+        render();
+        return;
+      }
+    }
+    render();
+  }
+}
+
+function openMgmtModal(name) {
+  setState({ mgmtModal: name, vendorModal: null });
+}
+
+function openVendorModal(idx) {
+  setState({ vendorModal: idx, mgmtModal: null });
+}
+
+function closeModal() {
+  setState({ mgmtModal: null, vendorModal: null });
+}
+
+function printDashboard() {
+  // 關閉 modal
+  if (state.mgmtModal !== null || state.vendorModal !== null) {
+    state.mgmtModal = null;
+    state.vendorModal = null;
+    render();
+  }
+  setTimeout(() => window.print(), 300);
+}
+
+async function exportPNG(sectionId, filename) {
+  const el = document.getElementById(sectionId);
+  if (!el) return;
+  // 暫時隱藏 no-print 元素
+  const noPrint = el.querySelectorAll('.no-print');
+  noPrint.forEach(n => n.style.visibility = 'hidden');
+  try {
+    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2, useCORS: true, logging: false });
+    const link = document.createElement('a');
+    link.download = filename + '_' + DATA.updated_at + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch (e) {
+    alert('匯出 PNG 失敗：' + e.message);
+  } finally {
+    noPrint.forEach(n => n.style.visibility = '');
+  }
+}
+
+// ==================== Render ====================
+function render() {
+  const app = document.getElementById('app');
+  const focusInfo = { 
+    search: document.activeElement && document.activeElement.tagName === 'INPUT' ? { id: document.activeElement.id, pos: document.activeElement.selectionStart } : null 
+  };
+  
+  app.innerHTML = `
+    ${tplHeader()}
+    <main class="max-w-7xl mx-auto px-6 py-6">
+      ${state.tab === 'solar' ? tplSolarDashboard() : tplHydroDashboard()}
+    </main>
+    <footer class="max-w-7xl mx-auto px-6 py-8 mt-6 text-center text-xs" style="color:var(--ink-muted)">
+      <p>農田水利署 ・ 水域型農業綠能設置綠能設施管制考核計畫</p>
+      <p class="mt-1">資料來源：1150116 小水力盤點 + 1150102 太陽光電盤點彙整版</p>
+    </footer>
+    ${state.mgmtModal !== null ? tplMgmtModal(state.mgmtModal) : ''}
+    ${state.vendorModal !== null ? tplVendorModal(state.vendorModal) : ''}
+  `;
+  
+  // 重畫 charts
+  setTimeout(renderCharts, 30);
+  
+  // 還原 input focus
+  if (focusInfo.search) {
+    const inp = document.getElementById(focusInfo.search.id);
+    if (inp) { inp.focus(); inp.setSelectionRange(focusInfo.search.pos, focusInfo.search.pos); }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', render);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+</body>
+</html>
